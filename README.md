@@ -40,7 +40,7 @@ curl -s6 ip.sb
 modinfo tcp_bbr
 
 ## 独有的.env配置，创建软连接
-ln -sf ~/ag/conf/default/docker.env ./.env
+ln -sf ~/ag/conf/default/docker.env ~/ag/.env
 
 ## acme命令动态配置域名证书
 bash ~/ag/conf/default/acme.sh
