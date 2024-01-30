@@ -200,7 +200,7 @@ else
   check_result "安装 iptables-persistent"
 
   rm /etc/iptables/rules.v4
-  check_result "删除原有的 /etc/iptables/rules.v4"
+  echo_ok "删除原有的 /etc/iptables/rules.v4"
 
   # 获取ssh端口
   current_port=$(grep -E '^ *Port [0-9]+' /etc/ssh/sshd_config | awk '{print $2}')
