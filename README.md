@@ -118,6 +118,7 @@ bash InstallNET.sh -debian 12 -pwd '88889999' -port "22" -mirror "http://mirrors
 #####
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
 ## systemctl status systemd-sysctl.service 可以看下具体报错
+## 会出现【nf_conntrack: nf_conntrack: table full, dropping packet】错误，用itdog一直发送tcping就会产生
 ## 执行生效命令：sysctl --system
 #####
 ```
