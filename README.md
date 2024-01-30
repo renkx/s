@@ -39,6 +39,9 @@ curl -s6 ip.sb
 # 查看当前bbr
 modinfo tcp_bbr
 
+# 好用的shell工具箱
+curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
+
 ## 独有的.env配置，创建软连接
 ln -sf ~/ag/conf/default/docker.env ~/ag/.env
 
