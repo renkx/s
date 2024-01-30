@@ -111,6 +111,7 @@ bash InstallNET.sh -debian 12 -pwd '88889999' -port "22" -mirror "http://mirrors
 ##### 相关说明
 ```shell
 ## 每次升级系统都需要重新设置bbr，否则会初始化
+## 一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，换内核有可能参数失效了，可以执行：sysctl -p 生效
 ## 需要安装 XANMOD官方内核(EDGE)(36)，并且删除旧内核，删除内核提示的时候选择NO (52)，最后开启优化方案2(22)
 ## 搬瓦工的机器迁移之后，/etc/hostname 会发生变化，chattr +i锁住就行了
 ## linode DD遇到问题：https://github.com/leitbogioro/Tools/issues/87
