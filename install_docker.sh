@@ -257,7 +257,7 @@ check_result "创建 /etc/rc.local 文件"
 chmod +x /etc/rc.local
 # 启动时无视警告
 systemctl enable --now rc-local
-check_result "rc-local 设置开机启动"
+echo_ok "rc-local 设置开机启动（无视上面自启动警告）"
 
 fi
 }
