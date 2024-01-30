@@ -78,33 +78,38 @@ source '/etc/os-release'
 #从VERSION中提取发行版系统的英文名称，为了在debian/ubuntu下添加相对应的Nginx apt源
 VERSION=$(echo "${VERSION}" | awk -F "[()]" '{print $2}')
 
+# 卸载软件
+remove() {
+  if [ $# -eq 0 ]; then
+      echo_error "未提供软件包参数!"
+      return 1
+  fi
+
+  for package in "$@"; do
+      if command -v apt &>/dev/null; then
+          apt purge -y "$package"
+      elif command -v yum &>/dev/null; then
+          yum remove -y "$package"
+      elif command -v apk &>/dev/null; then
+          apk del "$package"
+      else
+          echo_error "未知的包管理器!"
+          return 1
+      fi
+  done
+
+  return 0
+}
+
 check_system() {
-  if [[ "${ID}" == "centos" && ${VERSION_ID} -ge 7 ]]; then
-    echo_ok "当前系统为 Centos ${VERSION_ID} ${VERSION}"
-    INS="yum"
-  elif [[ "${ID}" == "debian" && ${VERSION_ID} -ge 8 ]]; then
+  if [[ "${ID}" == "debian" && ${VERSION_ID} -ge 8 ]]; then
     echo_ok "当前系统为 Debian ${VERSION_ID} ${VERSION}"
-    INS="apt"
-    $INS update
-  elif [[ "${ID}" == "ubuntu" && $(echo "${VERSION_ID}" | cut -d '.' -f1) -ge 16 ]]; then
-    echo_ok "当前系统为 Ubuntu ${VERSION_ID} ${UBUNTU_CODENAME}"
     INS="apt"
     $INS update
   else
     echo_error "当前系统为 ${ID} ${VERSION_ID} ${VERSION} 不在支持的系统列表内，安装中断"
     exit 1
   fi
-
-  $INS install -y dbus
-  check_result "安装 dbus"
-
-  systemctl stop firewalld
-  systemctl disable firewalld
-  check_result "关闭 firewalld"
-
-  systemctl stop ufw
-  systemctl disable ufw
-  check_result "关闭 ufw"
 }
 
 is_root() {
@@ -118,137 +123,170 @@ is_root() {
 }
 
 chrony_install() {
-    ${INS} -y install chrony
-    judge "安装 chrony 时间同步服务 "
+  ${INS} -y install chrony
+  judge "安装 chrony 时间同步服务 "
 
-    timedatectl set-ntp true
-    check_result "设置系统时间同步服务"
+  timedatectl set-ntp true
+  check_result "设置系统时间同步服务"
 
-    if [[ "${ID}" == "centos" ]]; then
-        systemctl enable chronyd && systemctl restart chronyd
-    else
-        systemctl enable chrony && systemctl restart chrony
-    fi
-    judge "chronyd 启动 "
+  if [[ "${ID}" == "centos" ]]; then
+      systemctl enable chronyd && systemctl restart chronyd
+  else
+      systemctl enable chrony && systemctl restart chrony
+  fi
+  judge "chronyd 启动 "
 
-    timedatectl set-timezone Asia/Shanghai
-    check_result "设置时区为 Asia/Shanghai"
+  timedatectl set-timezone Asia/Shanghai
+  check_result "设置时区为 Asia/Shanghai"
 
-    echo_ok "等待时间同步，sleep 10"
-    sleep 10
+  echo_ok "等待时间同步，sleep 10"
+  sleep 10
 
-    chronyc sourcestats -v
-    check_result "查看时间同步源"
-    chronyc tracking -v
-    check_result "查看时间同步状态"
-    date
-    check_result "查看时间"
-#    read -rp "请确认时间是否准确,误差范围±3分钟(Y/N): " chrony_install
-#    [[ -z ${chrony_install} ]] && chrony_install="Y"
-#    case $chrony_install in
-#    [yY][eE][sS] | [yY])
-#        echo -e "${GreenBG} 继续安装 ${Font}"
-#        sleep 2
-#        ;;
-#    *)
-#        echo -e "${RedBG} 安装终止 ${Font}"
-#        exit 2
-#        ;;
-#    esac
+  chronyc sourcestats -v
+  check_result "查看时间同步源"
+  chronyc tracking -v
+  check_result "查看时间同步状态"
+  date
+  check_result "查看时间"
+}
+
+iptables_open() {
+  iptables -P INPUT ACCEPT
+  iptables -P FORWARD ACCEPT
+  iptables -P OUTPUT ACCEPT
+  iptables -F
+
+  ip6tables -P INPUT ACCEPT
+  ip6tables -P FORWARD ACCEPT
+  ip6tables -P OUTPUT ACCEPT
+  ip6tables -F
 }
 
 # 依赖安装
 dependency_install() {
 
-    if [[ "${ID}" == "centos" ]]; then
-        # 设置软件源，并缓存软件包，【--import设置签名】
-        # remi源 php相关环境；ius源 git软件等
-        # Remi repository 是包含最新版本 PHP 和 MySQL 包的 Linux 源，由 Remi 提供维护。
-        # IUS（Inline with Upstream Stable）是一个社区项目，它旨在为 Linux 企业发行版提供可选软件的最新版 RPM 软件包。
-        rpm --import /etc/pki/rpm-gpg/*
-        ${INS} -y install yum-fastestmirror
-        ${INS} -y install https://mirrors.aliyun.com/remi/enterprise/remi-release-7.rpm
-        ${INS} -y install https://mirrors.aliyun.com/ius/ius-release-el7.rpm
-        rpm --import /etc/pki/rpm-gpg/*
-        ${INS} clean all
-        ${INS} makecache
-    fi
+  ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
+  check_result "安装基础依赖"
 
-    ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
-    check_result "安装基础依赖"
+  # debian 安装git
+  ${INS} install git -y
+  judge "安装 git"
 
-    if [[ "${ID}" == "centos" ]]; then
-        # centos 安装git
-        ${INS} install git224 -y
-        judge "安装 git"
+  ${INS} -y install cron
+  judge "安装 crontab"
 
-        ${INS} -y install crontabs
-        judge "安装 crontab"
-    else
-        # debian 安装git
-        ${INS} install git -y
-        judge "安装 git"
+  touch /var/spool/cron/crontabs/root && chmod 600 /var/spool/cron/crontabs/root
+  check_result "创建 crontab 文件"
+  systemctl start cron && systemctl enable cron
+  judge "启动 cron 服务"
 
-        ${INS} -y install cron
-        judge "安装 crontab"
-    fi
+  ${INS} -y install libpcre3 libpcre3-dev zlib1g-dev
+  check_result "安装 libpcre3 libpcre3-dev zlib1g-dev"
 
-    if [[ "${ID}" == "centos" ]]; then
-        touch /var/spool/cron/root && chmod 600 /var/spool/cron/root
-        check_result "创建 crontab 文件"
-        systemctl start crond && systemctl enable crond
-        judge "启动 crond 服务"
-    else
-        touch /var/spool/cron/crontabs/root && chmod 600 /var/spool/cron/crontabs/root
-        check_result "创建 crontab 文件"
-        systemctl start cron && systemctl enable cron
-        judge "启动 cron 服务"
+if dpkg -l | grep -q iptables-persistent; then
 
-    fi
+  echo_ok "防火墙已安装"
+else
 
-    ${INS} -y install bc
-    judge "安装 bc"
+  echo_ok "安装防火墙，进入安装流程.."
+  iptables_open
+  remove iptables-persistent
+  check_result "卸载原有的 iptables-persistent"
 
-    if [[ "${ID}" == "centos" ]]; then
-        ${INS} -y install pcre pcre-devel zlib-devel epel-release
-        check_result "安装 pcre pcre-devel zlib-devel epel-release"
-    else
-        ${INS} -y install libpcre3 libpcre3-dev zlib1g-dev
-        check_result "安装 libpcre3 libpcre3-dev zlib1g-dev"
-    fi
+  remove ufw
+  check_result "卸载 ufw"
+
+  apt update -y && apt install -y iptables-persistent
+  check_result "安装 iptables-persistent"
+
+  rm /etc/iptables/rules.v4
+  check_result "删除原有的 /etc/iptables/rules.v4"
+
+  # 获取ssh端口
+  current_port=$(grep -E '^ *Port [0-9]+' /etc/ssh/sshd_config | awk '{print $2}')
+
+  cat > /etc/iptables/rules.v4 << EOF
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+-A FORWARD -i lo -j ACCEPT
+-A INPUT -p tcp --dport $current_port -j ACCEPT
+COMMIT
+EOF
+  check_result "写入iptables规则到 /etc/iptables/rules.v4"
+
+  iptables-restore < /etc/iptables/rules.v4
+  check_result "iptables-restore < /etc/iptables/rules.v4 使规则生效"
+
+  systemctl enable netfilter-persistent
+  check_result "netfilter-persistent 设置开机启动"
+
+  echo_ok "防火墙安装完成"
+fi
+
+}
+
+# /etc/rc.local 开启启动程序开启
+rc_local_enable() {
+# 不存在才处理
+if [[ ! -f /etc/rc.local ]]; then
+  cat <<EOF >/etc/rc.local
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+
+# 加载内核配置，否则会被覆盖
+sysctl --system
+
+exit 0
+EOF
+check_result "创建 /etc/rc.local 文件"
+chmod +x /etc/rc.local
+# 启动时无视警告
+systemctl enable --now rc-local
+check_result "rc-local 设置开机启动"
+
+fi
 }
 
 install_docker() {
-    is_root
-    check_system
-    chrony_install
-    dependency_install
+  is_root
+  check_system
+  chrony_install
+  dependency_install
+  rc_local_enable
 
-    if [[ "${ID}" == "centos" ]]; then
-        # 参考：https://docs.docker.com/engine/install/centos/#install-using-the-repository
-        # 安装 yum-utils 软件包（它提供 yum-config-manager 实用程序）
-        yum install -y yum-utils
-        # 并设置稳定的源。
-        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-        judge "添加 docker 源"
-        # 添加Docker软件包源 这是阿里提供的源
-        # yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
-        # 安装最新版本的 Docker Engine 和 containerd
-        yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-        judge "安装 docker"
-        # 启动并设置开机启动
-        systemctl start docker && systemctl enable docker
-        judge "启动 docker"
-        docker version
-    elif [[ "${ID}" == "debian" ]]; then
+    echo_info "检测是否能ping谷歌"
+    IsGlobal="0"
+    delay="$(ping -4 -c 2 -w 2 www.google.com | grep rtt | cut -d'/' -f4 | awk '{ print $3 }' | sed -n '/^[0-9]\+\(\.[0-9]\+\)\?$/p')";
+    if [ "$delay" != "" ] ; then
+    	IsGlobal="1"
+    	echo_info "延迟：$delay ms , ping yes"
+    else
+      echo_info "延迟：$delay ms , ping no"
+    fi
+
+    if [[ "${ID}" == "debian" ]]; then
         # 参考：https://docs.docker.com/engine/install/debian/#install-using-the-repository
         $INS update
         $INS install -y apt-transport-https ca-certificates curl gnupg lsb-release gpg software-properties-common
         judge "安装 docker 依赖"
 
-        # 检测国内还是国外
-        ping -c 1 www.google.com >>/dev/null 2>&1
-        if [[ $? == 0 ]];then
+        # 检测是国外
+        if [[ "$IsGlobal" == "1" ]];then
 
             echo_ok "能访问国外，使用官方docker源"
             # 添加官方GPG key
