@@ -218,27 +218,11 @@ dependency_install() {
     fi
 }
 
-basic_optimization() {
-    # 最大文件打开数
-    sed -i '/^\*\ *soft\ *nofile\ *[[:digit:]]*/d' /etc/security/limits.conf
-    sed -i '/^\*\ *hard\ *nofile\ *[[:digit:]]*/d' /etc/security/limits.conf
-    echo '* soft nofile 65536' >>/etc/security/limits.conf
-    echo '* hard nofile 65536' >>/etc/security/limits.conf
-
-    # 关闭 Selinux 有可能出错 先不管
-    # Debian 11使用的是AppArmor，而不是SELinux
-    if [[ "${ID}" == "centos" ]]; then
-        sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
-        setenforce 0
-    fi
-}
-
 install_docker() {
     is_root
     check_system
     chrony_install
     dependency_install
-    basic_optimization
 
     if [[ "${ID}" == "centos" ]]; then
         # 参考：https://docs.docker.com/engine/install/centos/#install-using-the-repository
