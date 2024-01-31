@@ -81,14 +81,6 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 curl nxtrace.org/nt |bash
 ```
 
-##### swap.sh
-```shell
-# github
-yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/swap.sh)
-# gitee
-yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/swap.sh)
-```
-
 ##### LeitboGi0ro [github地址](https://github.com/leitbogioro/Tools) [nodeseek地址](https://www.nodeseek.com/post-9383-1)
 ```shell
 # github 脚本下载

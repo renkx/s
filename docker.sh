@@ -276,6 +276,17 @@ upgrading_system() {
   bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/upgrading_system.sh)
 }
 
+# 虚拟内存设置
+update_swap() {
+  if [[ "$IsGlobal" == "1" ]];then
+    echo_info "执行【github】的脚本 ..."
+    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/swap.sh)
+  else
+    echo_info "执行【gitee】的脚本 ..."
+    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/swap.sh)
+  fi
+}
+
 # 安装 ag
 install_ag()
 {
@@ -522,7 +533,8 @@ menu() {
     echo -e "${Green}5.${Font} 安装 ag"
     echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
     echo -e "${Green}7.${Font} 更新 /etc/resolv.conf"
-    echo -e "${Green}22.${Font} 一键 1、2、3、4、5、6、7"
+    echo -e "${Green}8.${Font} 虚拟内存设置"
+    echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
@@ -568,7 +580,11 @@ menu() {
         update_nameserver
         menu
         ;;
-    22)
+    8)
+        update_swap
+        menu
+        ;;
+    33)
         optimizing_system
         install_docker
         install_docker_compose
