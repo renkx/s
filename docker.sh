@@ -521,20 +521,20 @@ menu() {
     echo -e "${Green}4.${Font} 安装 on-my-zsh"
     echo -e "${Green}5.${Font} 安装 ag"
     echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
-    echo -e "${Green}7.${Font} 更新 /etc/resolv.conf \n"
+    echo -e "${Green}7.${Font} 更新 /etc/resolv.conf"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
     get_system_info
-    echo -e " 系统信息: $opsy $virtual $arch $kern "
+    echo -e " 系统信息: $opsy ${Green}$virtual${Font} $arch ${Green}$kern${Font} "
     if [[ ${kernel_status} == "noinstall" ]]; then
       echo -e " 当前状态: 未安装 加速内核 请先安装内核"
     else
-      echo -e " 当前状态: 已安装 ${kernel_status} 加速内核 , ${run_status}"
+      echo -e " 当前状态: ${Green}已安装${Font} ${Red}${kernel_status}${Font} 加速内核 , ${Green}${run_status}${Font}"
     fi
-    echo -e " 当前拥塞控制算法为: ${net_congestion_control} 当前队列算法为: ${net_qdisc} "
+    echo -e " 当前拥塞控制算法为: ${Green}${net_congestion_control}${Font} 当前队列算法为: ${Green}${net_qdisc}${Font} "
 
-    read -rp "请输入数字：" menu_num
+    read -rp " 请输入数字：" menu_num
     case $menu_num in
     0)
         exit 0
