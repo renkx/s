@@ -40,15 +40,15 @@ main() {
   mem_info=$(free -b | awk 'NR==2{printf "%.2f/%.2f MB (%.2f%%)", $3/1024/1024, $2/1024/1024, $3*100/$2}')
   swap_info="${swap_used}/${swap_total} MB (${swap_percentage}%)"
 
-  echo "当前物理内存: $mem_info"
-  echo "当前虚拟内存: $swap_info"
+  echo -e "当前物理内存: ${Green}$mem_info${Font}"
+  echo -e "当前虚拟内存: ${Green}$swap_info${Font}"
 
   read -p "是否调整虚拟内存大小?(Y/N): " choice
 
   case "$choice" in
     [Yy])
       # 输入新的虚拟内存大小
-      read -p "请输入虚拟内存大小${Green}MB${Font}: " new_swap
+      read -p "请输入虚拟内存大小MB: " new_swap
 
       # 获取当前系统中所有的 swap 分区
       swap_partitions=$(grep -E '^/dev/' /proc/swaps | awk '{print $1}')
@@ -58,7 +58,7 @@ main() {
         swapoff "$partition"
         wipefs -a "$partition"  # 清除文件系统标识符
         mkswap -f "$partition"
-        echo "已删除并重新创建 swap 分区: $partition"
+        echo -e "已删除并重新创建 swap 分区: $partition"
       done
 
       # 确保 /swapfile 不再被使用
@@ -82,13 +82,13 @@ main() {
           echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
       fi
 
-      echo "虚拟内存大小已调整为${Green}${new_swap}${Font}MB"
+      echo -e "虚拟内存大小已调整为${Green}${new_swap}${Font}MB"
       ;;
     [Nn])
       echo "已取消"
       ;;
     *)
-      echo "无效的选择，请输入 ${Green}Y${Font} 或 ${Green}N${Font}。"
+      echo -e "无效的选择，请输入 ${Green}Y${Font} 或 ${Green}N${Font}。"
       ;;
   esac
 }
