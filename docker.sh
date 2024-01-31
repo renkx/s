@@ -327,6 +327,189 @@ EOF
   judge "chattr +i /etc/resolv.conf 加锁"
 }
 
+get_opsy() {
+  if [ -f /etc/os-release ]; then
+    awk -F'[= "]' '/PRETTY_NAME/{print $3,$4,$5}' /etc/os-release
+  elif [ -f /etc/lsb-release ]; then
+    awk -F'[="]+' '/DESCRIPTION/{print $2}' /etc/lsb-release
+  elif [ -f /etc/system-release ]; then
+    cat /etc/system-release | awk '{print $1,$2}'
+  fi
+}
+
+get_system_info() {
+  opsy=$(get_opsy)
+  arch=$(uname -m)
+  kern=$(uname -r)
+  virt_check
+}
+
+# from LemonBench
+virt_check() {
+  if [ -f "/usr/bin/systemd-detect-virt" ]; then
+    Var_VirtType="$(/usr/bin/systemd-detect-virt)"
+    # 虚拟机检测
+    if [ "${Var_VirtType}" = "qemu" ]; then
+      virtual="QEMU"
+    elif [ "${Var_VirtType}" = "kvm" ]; then
+      virtual="KVM"
+    elif [ "${Var_VirtType}" = "zvm" ]; then
+      virtual="S390 Z/VM"
+    elif [ "${Var_VirtType}" = "vmware" ]; then
+      virtual="VMware"
+    elif [ "${Var_VirtType}" = "microsoft" ]; then
+      virtual="Microsoft Hyper-V"
+    elif [ "${Var_VirtType}" = "xen" ]; then
+      virtual="Xen Hypervisor"
+    elif [ "${Var_VirtType}" = "bochs" ]; then
+      virtual="BOCHS"
+    elif [ "${Var_VirtType}" = "uml" ]; then
+      virtual="User-mode Linux"
+    elif [ "${Var_VirtType}" = "parallels" ]; then
+      virtual="Parallels"
+    elif [ "${Var_VirtType}" = "bhyve" ]; then
+      virtual="FreeBSD Hypervisor"
+    # 容器虚拟化检测
+    elif [ "${Var_VirtType}" = "openvz" ]; then
+      virtual="OpenVZ"
+    elif [ "${Var_VirtType}" = "lxc" ]; then
+      virtual="LXC"
+    elif [ "${Var_VirtType}" = "lxc-libvirt" ]; then
+      virtual="LXC (libvirt)"
+    elif [ "${Var_VirtType}" = "systemd-nspawn" ]; then
+      virtual="Systemd nspawn"
+    elif [ "${Var_VirtType}" = "docker" ]; then
+      virtual="Docker"
+    elif [ "${Var_VirtType}" = "rkt" ]; then
+      virtual="RKT"
+    # 特殊处理
+    elif [ -c "/dev/lxss" ]; then # 处理WSL虚拟化
+      Var_VirtType="wsl"
+      virtual="Windows Subsystem for Linux (WSL)"
+    # 未匹配到任何结果, 或者非虚拟机
+    elif [ "${Var_VirtType}" = "none" ]; then
+      Var_VirtType="dedicated"
+      virtual="None"
+      local Var_BIOSVendor
+      Var_BIOSVendor="$(dmidecode -s bios-vendor)"
+      if [ "${Var_BIOSVendor}" = "SeaBIOS" ]; then
+        Var_VirtType="Unknown"
+        virtual="Unknown with SeaBIOS BIOS"
+      else
+        Var_VirtType="dedicated"
+        virtual="Dedicated with ${Var_BIOSVendor} BIOS"
+      fi
+    fi
+  elif [ ! -f "/usr/sbin/virt-what" ]; then
+    Var_VirtType="Unknown"
+    virtual="[Error: virt-what not found !]"
+  elif [ -f "/.dockerenv" ]; then # 处理Docker虚拟化
+    Var_VirtType="docker"
+    virtual="Docker"
+  elif [ -c "/dev/lxss" ]; then # 处理WSL虚拟化
+    Var_VirtType="wsl"
+    virtual="Windows Subsystem for Linux (WSL)"
+  else # 正常判断流程
+    Var_VirtType="$(virt-what | xargs)"
+    local Var_VirtTypeCount
+    Var_VirtTypeCount="$(echo $Var_VirtTypeCount | wc -l)"
+    if [ "${Var_VirtTypeCount}" -gt "1" ]; then # 处理嵌套虚拟化
+      virtual="echo ${Var_VirtType}"
+      Var_VirtType="$(echo ${Var_VirtType} | head -n1)"                          # 使用检测到的第一种虚拟化继续做判断
+    elif [ "${Var_VirtTypeCount}" -eq "1" ] && [ "${Var_VirtType}" != "" ]; then # 只有一种虚拟化
+      virtual="${Var_VirtType}"
+    else
+      local Var_BIOSVendor
+      Var_BIOSVendor="$(dmidecode -s bios-vendor)"
+      if [ "${Var_BIOSVendor}" = "SeaBIOS" ]; then
+        Var_VirtType="Unknown"
+        virtual="Unknown with SeaBIOS BIOS"
+      else
+        Var_VirtType="dedicated"
+        virtual="Dedicated with ${Var_BIOSVendor} BIOS"
+      fi
+    fi
+  fi
+}
+
+# 检查系统当前状态
+check_status() {
+  kernel_version=$(uname -r | awk -F "-" '{print $1}')
+  kernel_version_full=$(uname -r)
+  net_congestion_control=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
+  net_qdisc=$(cat /proc/sys/net/core/default_qdisc | awk '{print $1}')
+  if [[ ${kernel_version_full} == *bbrplus* ]]; then
+    kernel_status="BBRplus"
+  elif [[ ${kernel_version_full} == *4.9.0-4* || ${kernel_version_full} == *4.15.0-30* || ${kernel_version_full} == *4.8.0-36* || ${kernel_version_full} == *3.16.0-77* || ${kernel_version_full} == *3.16.0-4* || ${kernel_version_full} == *3.2.0-4* || ${kernel_version_full} == *4.11.2-1* || ${kernel_version_full} == *2.6.32-504* || ${kernel_version_full} == *4.4.0-47* || ${kernel_version_full} == *3.13.0-29 || ${kernel_version_full} == *4.4.0-47* ]]; then
+    kernel_status="Lotserver"
+  elif [[ $(echo ${kernel_version} | awk -F'.' '{print $1}') == "4" ]] && [[ $(echo ${kernel_version} | awk -F'.' '{print $2}') -ge 9 ]] || [[ $(echo ${kernel_version} | awk -F'.' '{print $1}') == "5" ]] || [[ $(echo ${kernel_version} | awk -F'.' '{print $1}') == "6" ]]; then
+    kernel_status="BBR"
+  else
+    kernel_status="noinstall"
+  fi
+
+  if [[ ${kernel_status} == "BBR" ]]; then
+    run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
+    if [[ ${run_status} == "bbr" ]]; then
+      run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
+      if [[ ${run_status} == "bbr" ]]; then
+        run_status="BBR启动成功"
+      else
+        run_status="BBR启动失败"
+      fi
+    elif [[ ${run_status} == "bbr2" ]]; then
+      run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
+      if [[ ${run_status} == "bbr2" ]]; then
+        run_status="BBR2启动成功"
+      else
+        run_status="BBR2启动失败"
+      fi
+    elif [[ ${run_status} == "tsunami" ]]; then
+      run_status=$(lsmod | grep "tsunami" | awk '{print $1}')
+      if [[ ${run_status} == "tcp_tsunami" ]]; then
+        run_status="BBR魔改版启动成功"
+      else
+        run_status="BBR魔改版启动失败"
+      fi
+    elif [[ ${run_status} == "nanqinlang" ]]; then
+      run_status=$(lsmod | grep "nanqinlang" | awk '{print $1}')
+      if [[ ${run_status} == "tcp_nanqinlang" ]]; then
+        run_status="暴力BBR魔改版启动成功"
+      else
+        run_status="暴力BBR魔改版启动失败"
+      fi
+    else
+      run_status="未安装加速模块"
+    fi
+
+  elif [[ ${kernel_status} == "Lotserver" ]]; then
+    if [[ -e /appex/bin/lotServer.sh ]]; then
+      run_status=$(bash /appex/bin/lotServer.sh status | grep "LotServer" | awk '{print $3}')
+      if [[ ${run_status} == "running!" ]]; then
+        run_status="启动成功"
+      else
+        run_status="启动失败"
+      fi
+    else
+      run_status="未安装加速模块"
+    fi
+  elif [[ ${kernel_status} == "BBRplus" ]]; then
+    run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
+    if [[ ${run_status} == "bbrplus" ]]; then
+      run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
+      if [[ ${run_status} == "bbrplus" ]]; then
+        run_status="BBRplus启动成功"
+      else
+        run_status="BBRplus启动失败"
+      fi
+    elif [[ ${run_status} == "bbr" ]]; then
+      run_status="BBR启动成功"
+    else
+      run_status="未安装加速模块"
+    fi
+  fi
+}
+
 menu() {
 
     echo
@@ -339,6 +522,17 @@ menu() {
     echo -e "${Green}5.${Font} 安装 ag"
     echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
     echo -e "${Green}7.${Font} 更新 /etc/resolv.conf \n"
+    echo -e "————————————————————————————————————————————————————————————————"
+
+    check_status
+    get_system_info
+    echo -e " 系统信息: $opsy $virtual $arch $kern "
+    if [[ ${kernel_status} == "noinstall" ]]; then
+      echo -e " 当前状态: 未安装 加速内核 请先安装内核"
+    else
+      echo -e " 当前状态: 已安装 ${kernel_status} 加速内核 , ${run_status}"
+    fi
+    echo -e " 当前拥塞控制算法为: ${net_congestion_control} 当前队列算法为: ${net_qdisc} "
 
     read -rp "请输入数字：" menu_num
     case $menu_num in
