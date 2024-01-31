@@ -112,11 +112,11 @@ bash InstallNET.sh -debian 12 -pwd '88889999' -port "22" -mirror "http://mirrors
 [归档](./README_ARCHIVE.md)
 
 ##### 相关说明
-```shell
+```markdown
 ## 每次升级系统都需要重新设置bbr，否则会初始化
 ## 需要安装 XANMOD官方内核(EDGE)(36)，并且删除旧内核，删除内核提示的时候选择NO (52)，最后开启优化方案2(22)
 ## 搬瓦工的机器迁移之后，/etc/hostname 会发生变化，chattr +i锁住就行了
-## linode DD遇到问题：https://github.com/leitbogioro/Tools/issues/87
+## linode DD遇到问题：[github](https://github.com/leitbogioro/Tools/issues/87)
 
 #####   以下问题已经用rc.local自启逻辑解决
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
@@ -124,4 +124,6 @@ bash InstallNET.sh -debian 12 -pwd '88889999' -port "22" -mirror "http://mirrors
 ## 会出现【nf_conntrack: nf_conntrack: table full, dropping packet】错误，用itdog一直发送tcping就会产生
 ## 执行生效命令：sysctl --system
 #####
+
+## debian 12之前，系统日志：/var/log/messages，之后为 journalctl -ef [说明](https://www.debian.org/releases/stable/i386/release-notes/ch-information.zh-cn.html#changes-to-system-logging)
 ```
