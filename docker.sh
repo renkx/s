@@ -270,10 +270,6 @@ EOF
   echo_info "优化应用结束，需要重启！"
 }
 
-optimizing_system
-
-exit 1;
-
 # 只能升级debian系统
 upgrading_system() {
   # 升级内核
