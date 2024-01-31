@@ -2,11 +2,6 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
-cd "$(
-    cd "$(dirname "$0")" || exit
-    pwd
-)" || exit
-
 #fonts color
 Green="\033[32m"
 Red="\033[31m"
@@ -57,11 +52,11 @@ check_result() {
   fi
 }
 
-# 版本
-shell_version="0.1.0"
-# git分支
-github_branch="main"
-version_cmp="/tmp/docker_sh_version_cmp.tmp"
+# 检查当前用户是否为 root 用户
+if [ "$EUID" -ne 0 ]; then
+  echo_error "请使用 root 用户身份运行此脚本"
+  exit
+fi
 
 # 获取系统相关参数
 source '/etc/os-release'
@@ -120,6 +115,164 @@ install_on_my_zsh()
     bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/myzsh.sh)
   fi
 }
+
+# 系统优化
+optimizing_system() {
+  if [ ! -f "/etc/sysctl.d/99-sysctl.conf" ]; then
+    touch /etc/sysctl.d/99-sysctl.conf
+  fi
+
+# 该操作会取消软链接
+# 新系统是 99-sysctl.conf -> ../sysctl.conf
+# 不需要更改sysctl.conf ，所以执行下面的替换操作，可以取消软链接
+sed -i '/renkx/d' /etc/sysctl.d/99-sysctl.conf
+
+# 覆盖写入
+  cat >'/etc/sysctl.d/99-sysctl.conf' <<EOF
+net.ipv4.tcp_fack = 1
+net.ipv4.tcp_early_retrans = 3
+net.ipv4.neigh.default.unres_qlen=10000
+net.ipv4.conf.all.route_localnet=1
+net.ipv4.ip_forward = 1
+net.ipv4.conf.all.forwarding = 1
+net.ipv4.conf.default.forwarding = 1
+#net.ipv6.conf.all.forwarding = 1  #awsipv6问题
+net.ipv6.conf.default.forwarding = 1
+net.ipv6.conf.lo.forwarding = 1
+net.ipv6.conf.all.disable_ipv6 = 0
+net.ipv6.conf.default.disable_ipv6 = 0
+net.ipv6.conf.lo.disable_ipv6 = 0
+net.ipv6.conf.all.accept_ra = 2
+net.ipv6.conf.default.accept_ra = 2
+net.core.netdev_max_backlog = 100000
+net.core.netdev_budget = 50000
+net.core.netdev_budget_usecs = 5000
+#fs.file-max = 51200
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.core.rmem_default = 67108864
+net.core.wmem_default = 67108864
+net.core.optmem_max = 65536
+net.core.somaxconn = 1000000
+net.ipv4.icmp_echo_ignore_all = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.default.rp_filter = 0
+net.ipv4.conf.all.rp_filter = 0
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_keepalive_intvl = 15
+net.ipv4.tcp_keepalive_probes = 2
+net.ipv4.tcp_synack_retries = 1
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_rfc1337 = 0
+net.ipv4.tcp_timestamps = 1
+net.ipv4.tcp_tw_reuse = 0
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_max_tw_buckets = 5000
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_rmem = 4096 87380 67108864
+net.ipv4.tcp_wmem = 4096 65536 67108864
+net.ipv4.udp_rmem_min = 8192
+net.ipv4.udp_wmem_min = 8192
+net.ipv4.tcp_mtu_probing = 1
+net.ipv4.tcp_autocorking = 0
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_max_syn_backlog = 819200
+net.ipv4.tcp_notsent_lowat = 16384
+net.ipv4.tcp_no_metrics_save = 0
+net.ipv4.tcp_ecn = 1
+net.ipv4.tcp_ecn_fallback = 1
+net.ipv4.tcp_frto = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv4.neigh.default.gc_thresh3=8192
+net.ipv4.neigh.default.gc_thresh2=4096
+net.ipv4.neigh.default.gc_thresh1=2048
+net.ipv6.neigh.default.gc_thresh3=8192
+net.ipv6.neigh.default.gc_thresh2=4096
+net.ipv6.neigh.default.gc_thresh1=2048
+net.ipv4.tcp_orphan_retries = 1
+net.ipv4.tcp_retries2 = 5
+vm.swappiness = 1
+vm.overcommit_memory = 1
+kernel.pid_max=64000
+net.netfilter.nf_conntrack_max = 262144
+net.nf_conntrack_max = 262144
+net.netfilter.nf_conntrack_icmp_timeout=10
+net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5
+net.netfilter.nf_conntrack_tcp_timeout_syn_sent=5
+net.netfilter.nf_conntrack_tcp_timeout_established=600
+net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10
+net.netfilter.nf_conntrack_tcp_timeout_time_wait=10
+net.netfilter.nf_conntrack_tcp_timeout_close_wait=10
+net.netfilter.nf_conntrack_tcp_timeout_last_ack=10
+## Enable bbr
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_low_latency = 1
+EOF
+
+  # 载入配置使其生效
+  sysctl -p
+  sysctl --system
+  #
+  echo always >/sys/kernel/mm/transparent_hugepage/enabled
+
+  cat >'/etc/systemd/system.conf' <<EOF
+[Manager]
+#DefaultTimeoutStartSec=90s
+DefaultTimeoutStopSec=30s
+#DefaultRestartSec=100ms
+DefaultLimitCORE=infinity
+DefaultLimitNOFILE=infinity
+DefaultLimitNPROC=infinity
+DefaultTasksMax=infinity
+EOF
+
+  cat >'/etc/security/limits.conf' <<EOF
+root     soft   nofile    1000000
+root     hard   nofile    1000000
+root     soft   nproc     unlimited
+root     hard   nproc     unlimited
+root     soft   core      unlimited
+root     hard   core      unlimited
+root     hard   memlock   unlimited
+root     soft   memlock   unlimited
+*     soft   nofile    1000000
+*     hard   nofile    1000000
+*     soft   nproc     unlimited
+*     hard   nproc     unlimited
+*     soft   core      unlimited
+*     hard   core      unlimited
+*     hard   memlock   unlimited
+*     soft   memlock   unlimited
+EOF
+
+  sed -i '/ulimit -SHn/d' /etc/profile
+  sed -i '/ulimit -SHu/d' /etc/profile
+  echo "ulimit -SHn 1000000" >>/etc/profile
+
+  if grep -q "pam_limits.so" /etc/pam.d/common-session; then
+    :
+  else
+    sed -i '/required pam_limits.so/d' /etc/pam.d/common-session
+    echo "session required pam_limits.so" >>/etc/pam.d/common-session
+  fi
+  systemctl daemon-reload
+
+  echo_info "优化应用结束，需要重启！"
+}
+
+optimizing_system
+
+exit 1;
 
 # 只能升级debian系统
 upgrading_system() {
@@ -183,9 +336,9 @@ menu() {
     echo
     echo -e "${GreenBG}—————————————— 安装向导 ——————————————${Font}"
     echo -e "${Green}0.${Font} 退出"
-    echo -e "${Green}1.${Font} 安装 docker"
-    echo -e "${Green}2.${Font} 安装 docker-compose"
-    echo -e "${Green}3.${Font} 升级 debian 系统内核"
+    echo -e "${Green}1.${Font} 系统优化"
+    echo -e "${Green}2.${Font} 安装 docker"
+    echo -e "${Green}3.${Font} 安装 docker-compose"
     echo -e "${Green}4.${Font} 安装 on-my-zsh"
     echo -e "${Green}5.${Font} 安装 ag"
     echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
@@ -197,15 +350,15 @@ menu() {
         exit 0
         ;;
     1)
-        install_docker
+        optimizing_system
         menu
         ;;
     2)
-        install_docker_compose
+        install_docker
         menu
         ;;
     3)
-        upgrading_system
+        install_docker_compose
         menu
         ;;
     4)
