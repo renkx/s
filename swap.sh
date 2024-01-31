@@ -24,7 +24,6 @@ ovz_no(){
 main() {
   root_need
   ovz_no
-  clear
 
   # 获取当前交换空间信息
   swap_used=$(free -m | awk 'NR==3{print $3}')
