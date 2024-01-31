@@ -38,7 +38,7 @@ main() {
   fi
 
   mem_info=$(free -b | awk 'NR==2{printf "%.2f/%.2f MB (%.2f%%)", $3/1024/1024, $2/1024/1024, $3*100/$2}')
-  swap_info="${swap_used}MB/${swap_total}MB (${swap_percentage}%)"
+  swap_info="${swap_used}/${swap_total} MB (${swap_percentage}%)"
 
   echo "当前物理内存: $mem_info"
   echo "当前虚拟内存: $swap_info"
