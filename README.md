@@ -75,6 +75,14 @@ docker run -d \
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR xxx
 ```
 
+##### iptablesUtils [github](https://github.com/arloor/iptablesUtils)
+```shell
+# github
+bash <(curl -fsSL https://raw.githubusercontent.com/arloor/iptablesUtils/master/natcfg.sh)
+# 国内
+bash <(curl -fsSL https://www.arloor.com/sh/iptablesUtils/natcfg.sh)
+```
+
 ##### NextTrace [github](https://github.com/nxtrace/NTrace-core) [github cn](https://github.com/nxtrace/NTrace-core/blob/main/README_zh_CN.md)
 ```shell
 # Linux 安装
