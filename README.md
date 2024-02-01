@@ -44,6 +44,8 @@ curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && ch
 
 ## 独有的.env配置，创建软连接
 ln -sf ~/ag/conf/default/docker.env ~/ag/.env
+## iptables转发配置，创建软连接
+ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 
 ## acme命令动态配置域名证书
 bash ~/ag/conf/default/acme.sh
