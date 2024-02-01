@@ -168,6 +168,19 @@ dependency_install() {
   ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
   check_result "安装基础依赖"
 
+  # 系统监控工具
+  ${INS} install -y htop
+  judge "安装 系统监控工具 htop"
+  # 网络流量监控工具
+  ${INS} install -y iftop
+  judge "安装 网络流量监控工具 iftop"
+  # 现代化监控工具
+  ${INS} install -y btop
+  judge "安装 现代化监控工具 btop"
+  # 磁盘占用查看工具
+  ${INS} install -y gdu
+  judge "安装 磁盘占用查看工具 gdu"
+
   # debian 安装git
   ${INS} install git -y
   judge "安装 git"
