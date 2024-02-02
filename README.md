@@ -83,8 +83,13 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 bash <(curl -fsSL https://raw.githubusercontent.com/arloor/iptablesUtils/master/natcfg.sh)
 # 国内
 bash <(curl -fsSL https://www.arloor.com/sh/iptablesUtils/natcfg.sh)
+```
 
-docker run -d --name spm --init --restart unless-stopped -p 127.0.0.1:8088:80 --log-opt max-size=1m --log-opt max-file=3 -e TZ=Asia/Shanghai -v ~/ag/conf/default/smokeping_config:/usr/local/smokeping/etc asdjkm1234/smokeping-master:latest
+##### smokeping [nodeseek](https://www.nodeseek.com/post-20454-1)
+```shell
+docker run -d --name spm --init --restart unless-stopped -p 8088:80 --log-opt max-size=1m --log-opt max-file=3 -e TZ=Asia/Shanghai -v ~/ag/conf/default/smokeping_config:/usr/local/smokeping/etc asdjkm1234/smokeping-master:latest
+
+docker run -d --name sps --network host -e SMOKEPING_MASTER_URL="http://sp.20250618.xyz:8088/smokeping/smokeping.fcgi.dist" -e SMOKEPING_SHARED_SECRET="" -e SMOKEPING_SLAVE_NAME="" asdjkm1234/smokeping-slave:latest
 ```
 
 ##### NextTrace [github](https://github.com/nxtrace/NTrace-core) [github cn](https://github.com/nxtrace/NTrace-core/blob/main/README_zh_CN.md)
