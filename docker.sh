@@ -214,7 +214,7 @@ net.netfilter.nf_conntrack_tcp_timeout_time_wait=10
 net.netfilter.nf_conntrack_tcp_timeout_close_wait=10
 net.netfilter.nf_conntrack_tcp_timeout_last_ack=10
 ## Enable bbr
-net.core.default_qdisc = fq
+net.core.default_qdisc = fq_pie
 net.ipv4.tcp_congestion_control = bbr
 net.ipv4.tcp_low_latency = 1
 EOF
