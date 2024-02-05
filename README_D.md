@@ -96,5 +96,5 @@ docker run -d \
     -p 127.0.0.1:25500:25500 \
     -v ~/ag/conf/default/pref.toml:/base/pref.toml \
     -v ~/ag/conf/default/:/base/ag/ \
-    tindy2013/subconverter:0.7.2
+    tindy2013/subconverter:0.8.1
 ```
