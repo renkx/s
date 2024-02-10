@@ -129,7 +129,7 @@ sed -i '/renkx/d' /etc/sysctl.d/99-sysctl.conf
 
 # 覆盖写入
   cat >'/etc/sysctl.d/99-sysctl.conf' <<EOF
-
+# Ref: https://www.nodeseek.com/post-37225-1
 # ------ 网络调优: 基本 ------
 # TTL 配置, Linux 默认 64
 # net.ipv4.ip_default_ttl=64
