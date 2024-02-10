@@ -127,6 +127,7 @@ bash InstallNET.sh -debian 12 -pwd '88889999' -port "22" -mirror "http://mirrors
 ## systemctl status systemd-sysctl.service 可以看下具体报错
 ## 会出现【nf_conntrack: nf_conntrack: table full, dropping packet】错误，用itdog一直发送tcping就会产生
 ## 执行生效命令：sysctl --system
+## 原因：安装docker造成的，docker启动时会重写某些nf内核配置
 #####
 
 ## debian 12之前，系统日志：/var/log/messages，之后为 journalctl -ef
