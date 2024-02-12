@@ -17,6 +17,7 @@ bash <(curl -L -s https://raw.githubusercontent.com/lmc999/RegionRestrictionChec
 bash <(curl -L -s check.unlock.media)
 ## 使用代理检测
 bash <(curl -L -s check.unlock.media) -P socks5://127.0.0.1:40000
+bash <(curl -L -s media.ispvps.com)
 
 ## VPS融合怪服务器测评脚本
 bash <(wget -qO- bash.spiritlhl.net/ecs)
