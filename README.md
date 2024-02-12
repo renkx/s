@@ -15,25 +15,20 @@ curl -fsSL git.io/speedtest-cli.sh | bash
 ## 检测解锁状态
 bash <(curl -L -s https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/check.sh)
 bash <(curl -L -s check.unlock.media)
-## 使用代理检测
 bash <(curl -L -s check.unlock.media) -P socks5://127.0.0.1:40000
 bash <(curl -L -s media.ispvps.com)
-
+bash <(curl -L -s media.ispvps.com) -P socks5://127.0.0.1:40000
 ## VPS融合怪服务器测评脚本
 bash <(wget -qO- bash.spiritlhl.net/ecs)
+## 检测ChatGPT是否可用
+bash <(curl -sSL https://raw.githubusercontent.com/Netflixxp/chatGPT/main/chat.sh)
 
 ## wgcf ipv6安装
 bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/warp/wgcf.sh)
 bash <(curl -fsSL git.io/warp.sh) 6
-
+## 勇哥的脚本
 [warp-yg](https://github.com/yonggekkk/warp-yg)
 bash <(wget -qO- https://gitlab.com/rwkgyg/CFwarp/raw/main/CFwarp.sh 2> /dev/null)
-
-## 检测ChatGPT是否可用
-bash <(curl -sSL https://raw.githubusercontent.com/Netflixxp/chatGPT/main/chat.sh)
-
-## 锁定DNS解析（第一个异常会请求第二个，为了防止docker容器还没启动。比如warp就会出问题）
-chattr -i /etc/resolv.conf && echo "nameserver 127.0.0.1\nnameserver 8.8.8.8" > /etc/resolv.conf && chattr +i /etc/resolv.conf
 
 curl -s http://ipv4.icanhazip.com 
 curl -s http://ipv6.icanhazip.com
