@@ -66,6 +66,9 @@ main() {
       # 删除旧的 /swapfile
       rm -f /swapfile
 
+      # 永久关闭swap分区
+      sed -ri 's/.*swap.*/#&/' /etc/fstab
+
       # 创建新的 swap 分区
       dd if=/dev/zero of=/swapfile bs=1M count=$new_swap
       chmod 600 /swapfile
