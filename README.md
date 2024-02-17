@@ -129,4 +129,6 @@ bash InstallNET.sh -debian 12 -pwd '88889999' -port "22" -mirror "http://mirrors
 
 ## debian 12之前，系统日志：/var/log/messages，之后为 journalctl -ef
 ## https://www.debian.org/releases/stable/i386/release-notes/ch-information.zh-cn.html#changes-to-system-logging
+
+## aws的新加坡比较好用，天津只是偶尔波动大。日本的北京晚高峰特别烂
 ```
