@@ -288,8 +288,8 @@ install_fail2ban() {
 [DEFAULT]
 # 用于指定哪些地址ip可以忽略 fail2ban 防御,以空格间隔。
 ignoreip = 127.0.0.1/8
-# 执行封禁的时长（秒） 10天
-bantime  = 864000
+# 执行封禁的时长（秒） 1天
+bantime  = 86400
 # 此时长（秒）内达到 maxretry 次就执行封禁动作
 findtime  = 600
 # 匹配到的阈值（允许失败次数）
