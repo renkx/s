@@ -168,6 +168,9 @@ dependency_install() {
   ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
   check_result "安装基础依赖"
 
+  ${INS} install rsyslog -y
+  judge "安装 系统日志服务 rsyslog"
+
   # 系统监控工具
   ${INS} install -y htop
   judge "安装 系统监控工具 htop"
@@ -275,12 +278,47 @@ echo_ok "rc-local 设置开机启动（无视上面自启动警告）"
 fi
 }
 
+# 安装防爆程序 fail2ban
+install_fail2ban() {
+
+  ${INS} install fail2ban -y
+  judge "安装 防爆程序 fail2ban"
+  # 设置配置
+  cat <<EOF >/etc/fail2ban/jail.d/defaults-debian.conf
+[DEFAULT]
+# 用于指定哪些地址ip可以忽略 fail2ban 防御,以空格间隔。
+ignoreip = 127.0.0.1/8
+# 执行封禁的时长（秒） 10天
+bantime  = 864000
+# 此时长（秒）内达到 maxretry 次就执行封禁动作
+findtime  = 600
+# 匹配到的阈值（允许失败次数）
+maxretry = 3
+
+[ssh-iptables]
+# 是否开启
+enabled  = true
+# 过滤规则
+port = 22
+filter = sshd
+# debian日志文件的路径
+logpath = /var/log/auth.log
+# 匹配到的阈值（次数）
+maxretry = 3
+EOF
+
+systemctl restart fail2ban
+systemctl status fail2ban
+echo_ok "防爆程序 fail2ban 设置完成"
+}
+
 install_docker() {
   is_root
   check_system
   chrony_install
   dependency_install
   rc_local_enable
+  install_fail2ban
 
     echo_info "检测是否能ping谷歌"
     IsGlobal="0"
