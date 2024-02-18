@@ -168,9 +168,6 @@ dependency_install() {
   ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
   check_result "安装基础依赖"
 
-  ${INS} install rsyslog -y
-  judge "安装 系统日志服务 rsyslog"
-
   # 系统监控工具
   ${INS} install -y htop
   judge "安装 系统监控工具 htop"
@@ -283,36 +280,17 @@ install_fail2ban() {
 
   ${INS} install fail2ban -y
   judge "安装 防爆程序 fail2ban"
-  # 设置配置
+  # 设置ssh配置
   cat <<EOF >/etc/fail2ban/jail.d/defaults-debian.conf
-[DEFAULT]
-# 用于指定哪些地址ip可以忽略 fail2ban 防御,以空格间隔。
-ignoreip = 127.0.0.1/8
+[sshd]
+enabled = true
 # 执行封禁的时长（秒） 1天
 bantime  = 86400
 # 此时长（秒）内达到 maxretry 次就执行封禁动作
 findtime  = 600
 # 匹配到的阈值（允许失败次数）
 maxretry = 3
-
-[ssh-iptables]
-# 是否开启
-enabled  = true
-# 过滤规则
-port = 22
-filter = sshd
-# debian日志文件的路径
-logpath = /var/log/auth.log
-# 匹配到的阈值（次数）
-maxretry = 3
 EOF
-
-  # 创建日志文件，否则fail2ban报错（系统还没来得及创建）
-  if [[ ! -f /var/log/auth.log ]]; then
-    touch /var/log/auth.log
-    chmod 640 /var/log/auth.log
-    chown root:adm /var/log/auth.log
-  fi
 
   systemctl restart fail2ban
   systemctl status fail2ban
