@@ -307,9 +307,16 @@ logpath = /var/log/auth.log
 maxretry = 3
 EOF
 
-systemctl restart fail2ban
-systemctl status fail2ban
-echo_ok "防爆程序 fail2ban 设置完成"
+  # 创建日志文件，否则fail2ban报错（系统还没来得及创建）
+  if [[ ! -f /var/log/auth.log ]]; then
+    touch /var/log/auth.log
+    chmod 640 /var/log/auth.log
+    chown root:adm /var/log/auth.log
+  fi
+
+  systemctl restart fail2ban
+  systemctl status fail2ban
+  echo_ok "防爆程序 fail2ban 设置完成"
 }
 
 install_docker() {
