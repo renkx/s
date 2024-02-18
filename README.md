@@ -27,9 +27,8 @@ bash <(curl -sSL https://raw.githubusercontent.com/Netflixxp/chatGPT/main/chat.s
 ## wgcf ipv6安装
 bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/warp/wgcf.sh)
 bash <(curl -fsSL git.io/warp.sh) 6
-## 勇哥的脚本
-[warp-yg](https://github.com/yonggekkk/warp-yg)
-bash <(wget -qO- https://gitlab.com/rwkgyg/CFwarp/raw/main/CFwarp.sh 2> /dev/null)
+[nodeseek](https://www.nodeseek.com/post-23836-1)
+wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh
 
 curl -s http://ipv4.icanhazip.com 
 curl -s http://ipv6.icanhazip.com
