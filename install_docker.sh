@@ -280,6 +280,15 @@ install_fail2ban() {
 
   ${INS} install fail2ban -y
   judge "安装 防爆程序 fail2ban"
+
+  # Fail2ban configurations.
+  # Reference: https://github.com/fail2ban/fail2ban/issues/2756
+  #            https://www.mail-archive.com/debian-bugs-dist@lists.debian.org/msg1879390.html
+  if ! grep -qE "^[^#]*allowipv6\s*=\s*auto" "/etc/fail2ban/fail2ban.conf"; then
+      sed -i '/^\[Definition\]/a allowipv6 = auto' /etc/fail2ban/fail2ban.conf;
+  fi
+  sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
+
   # 设置ssh配置
   cat <<EOF >/etc/fail2ban/jail.d/defaults-debian.conf
 [sshd]
@@ -292,6 +301,7 @@ findtime  = 600
 maxretry = 3
 EOF
 
+  systemctl enable fail2ban
   systemctl restart fail2ban
   systemctl status fail2ban
   echo_ok "防爆程序 fail2ban 设置完成"
