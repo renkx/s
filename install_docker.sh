@@ -287,7 +287,7 @@ install_fail2ban() {
   if ! grep -qE "^[^#]*allowipv6\s*=\s*auto" "/etc/fail2ban/fail2ban.conf"; then
       sed -i '/^\[Definition\]/a allowipv6 = auto' /etc/fail2ban/fail2ban.conf;
   fi
-  sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
+  sed -ri 's/maxretry = 3/maxretry = 2/g' /etc/fail2ban/jail.d/defaults-debian.conf;
 
   # 设置ssh配置
   cat <<EOF >/etc/fail2ban/jail.d/defaults-debian.conf
@@ -298,7 +298,7 @@ bantime  = 86400
 # 此时长（秒）内达到 maxretry 次就执行封禁动作
 findtime  = 600
 # 匹配到的阈值（允许失败次数）
-maxretry = 3
+maxretry = 2
 EOF
 
   systemctl enable fail2ban
