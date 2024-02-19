@@ -287,7 +287,7 @@ install_fail2ban() {
   if ! grep -qE "^[^#]*allowipv6\s*=\s*auto" "/etc/fail2ban/fail2ban.conf"; then
       sed -i '/^\[Definition\]/a allowipv6 = auto' /etc/fail2ban/fail2ban.conf;
   fi
-  sed -ri 's/maxretry = 3/maxretry = 2/g' /etc/fail2ban/jail.d/defaults-debian.conf;
+  sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
 
   # 设置ssh配置
   cat <<EOF >/etc/fail2ban/jail.d/defaults-debian.conf
