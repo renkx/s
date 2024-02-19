@@ -118,17 +118,12 @@ install_on_my_zsh()
 
 # 系统优化
 optimizing_system() {
-  if [ ! -f "/etc/sysctl.d/99-sysctl.conf" ]; then
-    touch /etc/sysctl.d/99-sysctl.conf
+  if [ ! -f "/etc/sysctl.d/optimizing-sysctl.conf" ]; then
+    touch /etc/sysctl.d/optimizing-sysctl.conf
   fi
 
-# 该操作会取消软链接
-# 新系统是 99-sysctl.conf -> ../sysctl.conf
-# 不需要更改sysctl.conf ，所以执行下面的替换操作，可以取消软链接
-sed -i '/renkx/d' /etc/sysctl.d/99-sysctl.conf
-
 # 覆盖写入
-  cat >'/etc/sysctl.d/99-sysctl.conf' <<EOF
+  cat >'/etc/sysctl.d/optimizing-sysctl.conf' <<EOF
 net.ipv4.tcp_fack = 1
 net.ipv4.tcp_early_retrans = 3
 net.ipv4.neigh.default.unres_qlen=10000
