@@ -6,12 +6,6 @@
 wget -qO- bench.sh | bash
 bash <(wget -qO- https://down.vpsaff.net/linux/speedtest/superbench.sh)
 
-## debian 系统更新
-apt update -y && apt full-upgrade -y && apt autoremove -y && apt autoclean -y
-
-## 网络测速脚本
-curl -fsSL git.io/speedtest-cli.sh | bash
-
 ## 检测解锁状态
 bash <(curl -L -s https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/check.sh)
 bash <(curl -L -s check.unlock.media)
@@ -88,6 +82,8 @@ bash <(curl -fsSL https://www.arloor.com/sh/iptablesUtils/natcfg.sh)
 ```shell
 # Linux 安装
 curl nxtrace.org/nt |bash
+# 网络测速脚本
+curl -fsSL git.io/speedtest-cli.sh | bash
 ```
 
 ##### LeitboGi0ro [github地址](https://github.com/leitbogioro/Tools) [nodeseek地址](https://www.nodeseek.com/post-9383-1)
@@ -104,6 +100,21 @@ bash InstallNET.sh -debian 12 -pwd '88889999' -port "22"
 # debian 12 阿里镜像
 bash InstallNET.sh -debian 12 -pwd '88889999' -port "22" -mirror "http://mirrors.aliyun.com/debian"
 
+```
+
+```shell
+## debian 系统更新
+apt update -y && apt full-upgrade -y && apt autoremove -y && apt autoclean -y
+
+# debian 系统清理
+apt autoremove --purge -y
+apt clean -y
+apt autoclean -y
+apt remove --purge $(dpkg -l | awk '/^rc/ {print $2}') -y
+journalctl --rotate
+journalctl --vacuum-time=1s
+journalctl --vacuum-size=50M
+apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}' | grep -v $(uname -r | sed 's/-.*//') | xargs) -y
 ```
 
 [私有agConf](https://github.com/renkx/myconf/tree/agconf)
