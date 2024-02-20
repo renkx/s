@@ -289,14 +289,18 @@ install_fail2ban() {
   fi
   sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
 
+  # 清除默认配置
+  rm -rf /etc/fail2ban/jail.d/defaults-debian.conf
   # 设置ssh配置
-  cat <<EOF >/etc/fail2ban/jail.d/defaults-debian.conf
+  cat <<EOF >/etc/fail2ban/jail.d/sshd.local
 [sshd]
 enabled = true
-# 执行封禁的时长（秒） 1天
-bantime  = 86400
-# 此时长（秒）内达到 maxretry 次就执行封禁动作
-findtime  = 600
+# 忽略 IP/段
+ignoreip = 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1/8 ::1
+# 封禁的时长（天）
+bantime  = 30d
+# 此时长（分）内达到 maxretry 次就执行封禁动作
+findtime  = 30m
 # 匹配到的阈值（允许失败次数）
 maxretry = 2
 EOF
