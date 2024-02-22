@@ -318,6 +318,8 @@ install_docker() {
   dependency_install
   rc_local_enable
   install_fail2ban
+  # 设置hostname解析，否则fail2ban会出现报错
+  hostname=$(hostname) && echo "127.0.0.1    $hostname" >> /etc/hosts
 
     echo_info "检测是否能ping谷歌"
     IsGlobal="0"

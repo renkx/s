@@ -2,7 +2,6 @@
 
 ##### 好用的命令
 ```shell
-hostname=$(hostname) && echo "127.0.0.1    $hostname" >> /etc/hosts
 ## 系统信息查看脚本
 wget -qO- bench.sh | bash
 bash <(wget -qO- https://down.vpsaff.net/linux/speedtest/superbench.sh)
