@@ -527,8 +527,7 @@ menu() {
     echo -e "${Green}4.${Font} 安装 on-my-zsh"
     echo -e "${Green}5.${Font} 安装 ag"
     echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
-    echo -e "${Green}7.${Font} 更新 /etc/resolv.conf"
-    echo -e "${Green}8.${Font} 虚拟内存设置"
+    echo -e "${Green}7.${Font} 虚拟内存设置"
     echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7"
     echo -e "————————————————————————————————————————————————————————————————"
 
@@ -572,10 +571,6 @@ menu() {
         menu
         ;;
     7)
-        update_nameserver
-        menu
-        ;;
-    8)
         update_swap
         menu
         ;;
@@ -586,7 +581,6 @@ menu() {
         install_on_my_zsh
         install_ag
         apt -y autoremove --purge qemu-guest-agent
-        update_nameserver
         menu
         ;;
     *)
