@@ -125,10 +125,9 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 
 ##### 相关说明
 ```shell
-## 需要安装 XANMOD官方内核(EDGE)(36)，并且删除旧内核，删除内核提示的时候选择NO (52)，最后开启优化方案2(22)
-## 搬瓦工的机器迁移之后，/etc/hostname 会发生变化，chattr +i锁住就行了
+## 需要安装 XANMOD官方内核(33)，并且删除旧内核，删除内核提示的时候选择NO (52)
 ## linode DD遇到问题：https://github.com/leitbogioro/Tools/issues/87
-## dmit DD遇到问题：启动特别慢，网络超时，按照上面linode最后修改网络就行
+## linode、dmit、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug
 
 #####   以下问题已经用rc.local自启逻辑解决
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
