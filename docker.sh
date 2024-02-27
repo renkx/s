@@ -84,6 +84,76 @@ judge() {
     fi
 }
 
+_exists() {
+    local cmd="$1"
+    if eval type type >/dev/null 2>&1; then
+        eval type "$cmd" >/dev/null 2>&1
+    elif command >/dev/null 2>&1; then
+        command -v "$cmd" >/dev/null 2>&1
+    else
+        which "$cmd" >/dev/null 2>&1
+    fi
+    local rt=$?
+    return ${rt}
+}
+
+# 检查虚拟化类型
+check_virt() {
+    _exists "dmesg" && virtualx="$(dmesg 2>/dev/null)"
+    if _exists "dmidecode"; then
+        sys_manu="$(dmidecode -s system-manufacturer 2>/dev/null)"
+        sys_product="$(dmidecode -s system-product-name 2>/dev/null)"
+        sys_ver="$(dmidecode -s system-version 2>/dev/null)"
+    else
+        sys_manu=""
+        sys_product=""
+        sys_ver=""
+    fi
+    if grep -qa docker /proc/1/cgroup; then
+        virt="Docker"
+    elif grep -qa lxc /proc/1/cgroup; then
+        virt="LXC"
+    elif grep -qa container=lxc /proc/1/environ; then
+        virt="LXC"
+    elif [[ -f /proc/user_beancounters ]]; then
+        virt="OpenVZ"
+    elif [[ "${virtualx}" == *kvm-clock* ]]; then
+        virt="KVM"
+    elif [[ "${sys_product}" == *KVM* ]]; then
+        virt="KVM"
+    elif [[ "${cname}" == *KVM* ]]; then
+        virt="KVM"
+    elif [[ "${cname}" == *QEMU* ]]; then
+        virt="KVM"
+    elif [[ "${virtualx}" == *"VMware Virtual Platform"* ]]; then
+        virt="VMware"
+    elif [[ "${sys_product}" == *"VMware Virtual Platform"* ]]; then
+        virt="VMware"
+    elif [[ "${virtualx}" == *"Parallels Software International"* ]]; then
+        virt="Parallels"
+    elif [[ "${virtualx}" == *VirtualBox* ]]; then
+        virt="VirtualBox"
+    elif [[ -e /proc/xen ]]; then
+        if grep -q "control_d" "/proc/xen/capabilities" 2>/dev/null; then
+            virt="Xen-Dom0"
+        else
+            virt="Xen-DomU"
+        fi
+    elif [ -f "/sys/hypervisor/type" ] && grep -q "xen" "/sys/hypervisor/type"; then
+        virt="Xen"
+    elif [[ "${sys_manu}" == *"Microsoft Corporation"* ]]; then
+        if [[ "${sys_product}" == *"Virtual Machine"* ]]; then
+            if [[ "${sys_ver}" == *"7.0"* || "${sys_ver}" == *"Hyper-V" ]]; then
+                virt="Hyper-V"
+            else
+                virt="Microsoft Virtual Machine"
+            fi
+        fi
+    else
+        virt="Dedicated"
+    fi
+}
+
 install_docker() {
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
@@ -120,6 +190,8 @@ install_on_my_zsh()
 optimizing_system() {
   # 更新
   apt update
+  # 检查虚拟化类型
+  check_virt
 
   # 获取网卡接口名称
   nic_interface=$(ip addr | grep 'state UP' | awk '{print $2}' | sed 's/.$//')
@@ -130,7 +202,7 @@ optimizing_system() {
   fi
 
   # 检查系统虚拟化类型，如果是 KVM，则关闭 TSO 和 GSO
-  if [ "$(systemd-detect-virt)" == "kvm" ]; then
+  if [ "$virt" == "KVM" ]; then
       echo_info "系统虚拟化类型为 KVM，正在关闭 TSO 和 GSO..."
       for interface in $nic_interface; do
           ethtool -K $interface tso off gso off
