@@ -134,7 +134,7 @@ optimizing_system() {
       echo_info "系统虚拟化类型为 KVM，正在关闭 TSO 和 GSO..."
       for interface in $nic_interface; do
           ethtool -K $interface tso off gso off
-          judge "TSO 和 GSO 关闭于接口 $interface"
+          echo_info "TSO 和 GSO 关闭于接口 $interface"
       done
   else
       echo_info "系统虚拟化类型非 KVM，不需要关闭 TSO 和 GSO。"
@@ -142,7 +142,7 @@ optimizing_system() {
 
   echo_info "正在安装 haveged 增强性能中！"
   apt install haveged -y
-  judge "安装 haveged"
+  echo_ok "安装 haveged"
 
   echo_info "正在配置 haveged 增强性能中！"
   systemctl disable --now haveged
