@@ -127,7 +127,7 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 ```shell
 ## 需要安装 XANMOD官方内核(33)，并且删除旧内核，删除内核提示的时候选择NO (52)
 ## linode DD遇到问题：https://github.com/leitbogioro/Tools/issues/87
-## linode、dmit、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug
+## linode、dmit、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug，dd脚本参数加：--autoplugadapter "0"
 
 #####   以下问题已经用rc.local自启逻辑解决
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
