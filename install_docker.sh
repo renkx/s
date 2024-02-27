@@ -275,6 +275,18 @@ systemctl enable --now rc-local
 echo_ok "rc-local 设置开机启动（无视上面自启动警告）"
 
 fi
+
+# 使用 DHCP 钩子，禁止修改 /etc/resolv.conf
+if [[ ! -f /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate ]]; then
+  cat <<EOF >/etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
+#!/bin/sh
+make_resolv_conf(){
+    :
+}
+EOF
+check_result "创建 /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate 文件"
+chmod +x /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
+fi
 }
 
 # 安装防爆程序 fail2ban
