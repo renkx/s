@@ -118,6 +118,36 @@ install_on_my_zsh()
 
 # 系统优化
 optimizing_system() {
+  # 更新
+  apt update
+
+  # 获取网卡接口名称
+  nic_interface=$(ip addr | grep 'state UP' | awk '{print $2}' | sed 's/.$//')
+
+  # 安装 ethtool（如果未安装）
+  if ! [ -x "$(command -v ethtool)" ]; then
+      apt -y install ethtool
+  fi
+
+  # 检查系统虚拟化类型，如果是 KVM，则关闭 TSO 和 GSO
+  if [ "$(systemd-detect-virt)" == "kvm" ]; then
+      echo_info "系统虚拟化类型为 KVM，正在关闭 TSO 和 GSO..."
+      for interface in $nic_interface; do
+          ethtool -K $interface tso off gso off
+          judge "TSO 和 GSO 关闭于接口 $interface"
+      done
+  else
+      echo_info "系统虚拟化类型非 KVM，不需要关闭 TSO 和 GSO。"
+  fi
+
+  echo_info "正在安装 haveged 增强性能中！"
+  apt install haveged -y
+  judge "安装 haveged"
+
+  echo_info "正在配置 haveged 增强性能中！"
+  systemctl disable --now haveged
+  systemctl enable --now haveged
+
   if [ ! -f "/etc/sysctl.d/optimizing-sysctl.conf" ]; then
     touch /etc/sysctl.d/optimizing-sysctl.conf
   fi
@@ -195,8 +225,8 @@ net.ipv4.tcp_retries2 = 5
 vm.swappiness = 1
 vm.overcommit_memory = 1
 kernel.pid_max=64000
-net.netfilter.nf_conntrack_max = 262144
-net.nf_conntrack_max = 262144
+net.netfilter.nf_conntrack_max = 2621440
+net.nf_conntrack_max = 2621440
 net.netfilter.nf_conntrack_icmp_timeout=10
 net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5
 net.netfilter.nf_conntrack_tcp_timeout_syn_sent=5
@@ -253,6 +283,17 @@ root     soft   memlock   unlimited
 *     hard   memlock   unlimited
 *     soft   memlock   unlimited
 EOF
+
+  # 系统日志调整
+  cat >'/etc/systemd/journald.conf' <<EOF
+[Journal]
+SystemMaxUse=300M
+SystemMaxFileSize=50M
+RuntimeMaxUse=30M
+RuntimeMaxFileSize=5M
+ForwardToSyslog=no
+EOF
+  systemctl restart systemd-journald
 
   sed -i '/ulimit -SHn/d' /etc/profile
   sed -i '/ulimit -SHu/d' /etc/profile
