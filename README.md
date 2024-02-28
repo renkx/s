@@ -19,8 +19,6 @@ bash <(wget -qO- bash.spiritlhl.net/ecs)
 bash <(curl -sSL https://raw.githubusercontent.com/Netflixxp/chatGPT/main/chat.sh)
 
 ## wgcf ipv6安装
-bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/warp/wgcf.sh)
-bash <(curl -fsSL git.io/warp.sh) 6
 [nodeseek](https://www.nodeseek.com/post-23836-1)
 wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh
 
