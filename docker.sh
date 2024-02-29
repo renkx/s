@@ -633,6 +633,121 @@ check_status() {
   fi
 }
 
+# 更新motd
+update_motd() {
+  # 删除原有的
+  rm -rf /etc/update-motd.d/ /etc/motd /run/motd.dynamic
+  mkdir -p /etc/update-motd.d/
+
+    cat >/etc/update-motd.d/00-header <<'EOF'
+#!/bin/sh
+
+if
+	[ -z "$DISTRIB_DESCRIPTION" ]
+	[ -x /usr/bin/lsb_release ]
+then
+	# Fall back to using the very slow lsb_release utility
+	DISTRIB_DESCRIPTION=$(lsb_release -s -d)
+fi
+
+printf "Welcome to %s (%s)\n" "$DISTRIB_DESCRIPTION" "$(uname -r)"
+printf "\n"
+EOF
+
+    cat >/etc/update-motd.d/10-sysinfo <<'EOF'
+#!/bin/bash
+
+date=$(date)
+load=$(cat /proc/loadavg | awk '{print $1}')
+root_usage=$(df -h / | awk '/\// {print $(NF-1)}')
+memory_usage=$(free -m | awk '/Mem:/ { total=$2; used=$3 } END { printf("%3.1f%%", used/total*100)}')
+
+[[ $(free -m | awk '/Swap/ {print $2}') == "0" ]] && swap_usage="0.0%" || swap_usage=$(free -m | awk '/Swap/ { printf("%3.1f%%", $3/$2*100) }')
+usersnum=$(expr $(users | wc -w) + 1)
+time=$(uptime | grep -ohe 'up .*' | sed 's/,/\ hours/g' | awk '{ printf $2" "$3 }')
+processes=$(ps aux | wc -l)
+localip=$(hostname -I | awk '{print $1}')
+
+IPv4=$(timeout 1s dig -4 TXT +short o-o.myaddr.l.google.com @ns3.google.com | sed 's/\"//g')
+[[ "$IPv4" == "" ]] && IPv4=$(timeout 1s dig -4 TXT CH +short whoami.cloudflare @1.0.0.3 | sed 's/\"//g')
+IPv6=$(timeout 1s dig -6 TXT +short o-o.myaddr.l.google.com @ns3.google.com | sed 's/\"//g')
+[[ "$IPv6" == "" ]] && IPv6=$(timeout 1s dig -6 TXT CH +short whoami.cloudflare @2606:4700:4700::1003 | sed 's/\"//g')
+# IP_Check=$(echo $IPv4 | awk -F. '$1<255&&$2<255&&$3<255&&$4<255{print "isIPv4"}')
+IP_Check="$IPv4"
+if expr "$IP_Check" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
+	for i in 1 2 3 4; do
+		if [ $(echo "$IP_Check" | cut -d. -f$i) -gt 255 ]; then
+			echo "fail ($IP_Check)"
+			exit 1
+		fi
+	done
+	IP_Check="isIPv4"
+fi
+
+[[ ${IPv6: -1} == ":" ]] && IPv6=$(echo "$IPv6" | sed 's/.$/0/')
+[[ ${IPv6:0:1} == ":" ]] && IPv6=$(echo "$IPv6" | sed 's/^./0/')
+IP6_Check="$IPv6"":"
+IP6_Hex_Num=$(echo "$IP6_Check" | tr -cd ":" | wc -c)
+IP6_Hex_Abbr="0"
+if [[ $(echo "$IPv6" | grep -i '[[:xdigit:]]' | grep ':') ]] && [[ "$IP6_Hex_Num" -le "8" ]]; then
+	for ((i = 1; i <= "$IP6_Hex_Num"; i++)); do
+		IP6_Hex=$(echo "$IP6_Check" | cut -d: -f$i)
+		[[ "$IP6_Hex" == "" ]] && IP6_Hex_Abbr=$(expr $IP6_Hex_Abbr + 1)
+		[[ $(echo "$IP6_Hex" | wc -c) -le "4" ]] && {
+			if [[ $(echo "$IP6_Hex" | grep -iE '[^0-9a-f]') ]] || [[ "$IP6_Hex_Abbr" -gt "1" ]]; then
+				echo "fail ($IP6_Check)"
+				exit 1
+			fi
+		}
+	done
+	IP6_Check="isIPv6"
+fi
+
+[[ "${IP6_Check}" != "isIPv6" ]] && IPv6="N/A"
+
+[[ "${IP_Check}" != "isIPv4" ]] && IPv4="N/A"
+
+if [[ "${localip}" == "${IPv4}" ]] || [[ "${localip}" == "${IPv6}" ]] || [[ -z "${localip}" ]]; then
+	# localip=`ip -o a show | grep -w "lo" | grep -w "inet" | cut -d ' ' -f7 | awk '{split($1, a, "/"); print $2 "" a[1]}'`
+	localip=$(cat /etc/hosts | grep "localhost" | sed -n 1p | awk '{print $1}')
+fi
+
+echo " System information as of $date"
+echo
+printf "%-30s%-15s\n" " System Load:" "$load"
+printf "%-30s%-15s\n" " Private IP Address:" "$localip"
+printf "%-30s%-15s\n" " Public IPv4 Address:" "$IPv4"
+printf "%-30s%-15s\n" " Public IPv6 Address:" "$IPv6"
+printf "%-30s%-15s\n" " Memory Usage:" "$memory_usage"
+printf "%-30s%-15s\n" " Usage On /:" "$root_usage"
+printf "%-30s%-15s\n" " Swap Usage:" "$swap_usage"
+printf "%-30s%-15s\n" " Users Logged In:" "$usersnum"
+printf "%-30s%-15s\n" " Processes:" "$processes"
+printf "%-30s%-15s\n" " System Uptime:" "$time"
+echo
+EOF
+
+    cat >/etc/update-motd.d/90-footer <<'EOF'
+#!/bin/sh
+
+UpdateLog="/var/log/PackagesUpdatingStatus.log"
+[[ -f "$UpdateLog" ]] && rm -rf $UpdateLog
+
+apt list --upgradable | awk 'END{print NR}' | tee -a "$UpdateLog" >/dev/null 2>&1
+UpdateRemind=$(cat $UpdateLog | tail -n 1)
+UpdateNum=$(expr $UpdateRemind - 1)
+
+[ "$UpdateNum" -eq "1" ] && printf "$UpdateNum package can be upgraded. Run 'apt list --upgradable' to see it.\n"
+[ "$UpdateNum" -gt "1" ] && printf "$UpdateNum packages can be upgraded. Run 'apt list --upgradable' to see them.\n"
+
+rm -rf $UpdateLog
+EOF
+
+    chmod +x /etc/update-motd.d/00-header
+    chmod +x /etc/update-motd.d/10-sysinfo
+    chmod +x /etc/update-motd.d/90-footer
+}
+
 menu() {
 
     echo
@@ -643,8 +758,9 @@ menu() {
     echo -e "${Green}3.${Font} 安装 docker-compose"
     echo -e "${Green}4.${Font} 安装 on-my-zsh"
     echo -e "${Green}5.${Font} 安装 ag"
-    echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
-    echo -e "${Green}7.${Font} 虚拟内存设置"
+    echo -e "${Green}6.${Font} 更新 motd"
+    echo -e "${Green}7.${Font} 卸载 qemu-guest-agent"
+    echo -e "${Green}8.${Font} 虚拟内存设置"
     echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7"
     echo -e "————————————————————————————————————————————————————————————————"
 
@@ -684,10 +800,14 @@ menu() {
         menu
         ;;
     6)
-        apt -y autoremove --purge qemu-guest-agent
+        update_motd
         menu
         ;;
     7)
+        apt -y autoremove --purge qemu-guest-agent
+        menu
+        ;;
+    8)
         update_swap
         menu
         ;;
