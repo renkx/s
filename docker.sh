@@ -817,6 +817,7 @@ menu() {
         install_docker_compose
         install_on_my_zsh
         install_ag
+        update_motd
         apt -y autoremove --purge qemu-guest-agent
         menu
         ;;
