@@ -348,22 +348,25 @@ install_docker() {
     if [[ "${ID}" == "debian" ]]; then
         # 参考：https://docs.docker.com/engine/install/debian/#install-using-the-repository
         $INS update
-        $INS install -y apt-transport-https ca-certificates curl gnupg lsb-release gpg software-properties-common
+        $INS install -y ca-certificates curl
+        install -m 0755 -d /etc/apt/keyrings
         judge "安装 docker 依赖"
 
         # 检测是国外
         if [[ "$IsGlobal" == "1" ]];then
 
             echo_ok "能访问国外，使用官方docker源"
+
             # 添加官方GPG key
-            if [[ ! -f /usr/share/keyrings/docker-archive-keyring.gpg ]]; then
-                curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-                judge "添加官方GPG key"
-            fi
+            curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+            chmod a+r /etc/apt/keyrings/docker.asc
+            judge "添加官方GPG key"
+
             # 设置源
             echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
-            $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+              $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+              tee /etc/apt/sources.list.d/docker.list > /dev/null
             judge "设置 docker 源"
             $INS update
             judge "更新 apt 缓存"
@@ -398,10 +401,15 @@ EOF
 
             echo_ok "不能访问国外，使用阿里的docker源"
             # 安装GPG证书
-            curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg | apt-key add -
+            curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+            chmod a+r /etc/apt/keyrings/docker.asc
+            judge "添加GPG key"
+
             # 设置源
             echo \
-            "deb [arch=$(dpkg --print-architecture)] https://mirrors.ustc.edu.cn/docker-ce/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://mirrors.ustc.edu.cn/docker-ce/linux/debian \
+              $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+              tee /etc/apt/sources.list.d/docker.list > /dev/null
             judge "设置 docker 源"
             $INS update
             judge "更新 apt 缓存"
