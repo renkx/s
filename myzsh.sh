@@ -82,6 +82,8 @@ pastefinish() {
 zstyle :bracketed-paste-magic paste-init pasteinit
 zstyle :bracketed-paste-magic paste-finish pastefinish
 
+alias docker-compose='docker compose'
+
 alias ag='export http_proxy=http://127.0.0.1:10801 https_proxy=http://127.0.0.1:10801 all_proxy=socks5://127.0.0.1:10800'
 
 EOF

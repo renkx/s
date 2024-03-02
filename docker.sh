@@ -164,17 +164,6 @@ install_docker() {
   fi
 }
 
-install_docker_compose()
-{
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_docker_compose.sh)
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_docker_compose.sh)
-  fi
-}
-
 install_on_my_zsh()
 {
   if [[ "$IsGlobal" == "1" ]];then
@@ -755,12 +744,11 @@ menu() {
     echo -e "${Green}0.${Font} 退出"
     echo -e "${Green}1.${Font} 系统优化"
     echo -e "${Green}2.${Font} 安装 docker"
-    echo -e "${Green}3.${Font} 安装 docker-compose"
-    echo -e "${Green}4.${Font} 安装 on-my-zsh"
-    echo -e "${Green}5.${Font} 安装 ag"
-    echo -e "${Green}6.${Font} 更新 motd"
-    echo -e "${Green}7.${Font} 卸载 qemu-guest-agent"
-    echo -e "${Green}8.${Font} 虚拟内存设置"
+    echo -e "${Green}3.${Font} 安装 on-my-zsh"
+    echo -e "${Green}4.${Font} 安装 ag"
+    echo -e "${Green}5.${Font} 更新 motd"
+    echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
+    echo -e "${Green}7.${Font} 虚拟内存设置"
     echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7"
     echo -e "————————————————————————————————————————————————————————————————"
 
@@ -788,33 +776,28 @@ menu() {
         menu
         ;;
     3)
-        install_docker_compose
-        menu
-        ;;
-    4)
         install_on_my_zsh
         menu
         ;;
-    5)
+    4)
         install_ag
         menu
         ;;
-    6)
+    5)
         update_motd
         menu
         ;;
-    7)
+    6)
         apt -y autoremove --purge qemu-guest-agent
         menu
         ;;
-    8)
+    7)
         update_swap
         menu
         ;;
     33)
         optimizing_system
         install_docker
-        install_docker_compose
         install_on_my_zsh
         install_ag
         update_motd
