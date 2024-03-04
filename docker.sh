@@ -720,9 +720,11 @@ EOF
 #!/bin/sh
 
 UpdateLog="/var/log/PackagesUpdatingStatus.log"
-[[ -f "$UpdateLog" ]] && rm -rf $UpdateLog
+if [ -f "$UpdateLog" ]; then
+    rm -rf $UpdateLog
+fi
 
-apt list --upgradable | awk 'END{print NR}' | tee -a "$UpdateLog" >/dev/null 2>&1
+apt list --upgradable 2>/dev/null | awk 'END{print NR}' | tee -a "$UpdateLog" >/dev/null 2>&1
 UpdateRemind=$(cat $UpdateLog | tail -n 1)
 UpdateNum=$(expr $UpdateRemind - 1)
 
