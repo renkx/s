@@ -60,6 +60,11 @@ command_exists() {
 edit_zshrc() {
   touch ${zshrc_file}
   cat >${zshrc_file} <<'EOF'
+# 解决zsh:no matches found问题
+setopt no_nomatch
+# zsh其实并不使用/etc/profile文件，而是使用/etc/zsh/下面的zshenv、zprofile、zshrc、zlogin文件，并以这个顺序进行加载
+source /etc/profile
+
 export ZSH="$HOME/.oh-my-zsh"
 
 ZSH_THEME="ys"
