@@ -139,4 +139,5 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 ## https://www.debian.org/releases/stable/i386/release-notes/ch-information.zh-cn.html#changes-to-system-logging
 
 ## aws的新加坡比较好用，天津只是偶尔波动大。日本的北京晚高峰特别烂
+## misaka 21$ PCCW线路，晚高峰联通爆炸
 ```
