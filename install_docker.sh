@@ -309,6 +309,7 @@ install_fail2ban() {
   cat <<EOF >/etc/fail2ban/jail.d/sshd.local
 [sshd]
 enabled = true
+port = 12722
 # 忽略 IP/段
 ignoreip = 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1/8 ::1
 # 封禁的时长（天）
