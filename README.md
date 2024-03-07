@@ -5,7 +5,8 @@
 ## 系统信息查看脚本
 wget -qO- bench.sh | bash
 bash <(wget -qO- https://down.vpsaff.net/linux/speedtest/superbench.sh)
-
+# 服务器的GB5测试
+bash <(curl -sL bash.icu/gb5)
 ## 检测解锁状态
 bash <(curl -L -s https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/check.sh)
 bash <(curl -L -s check.unlock.media)
