@@ -11,6 +11,7 @@ cd "$(
 sudo -s
 sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -ri "/^#?Port.*/c\Port 12722" /etc/ssh/sshd_config
 
 # 安装docker
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/renkx/s/main/install_docker.sh)"
