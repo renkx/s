@@ -154,6 +154,16 @@ check_virt() {
     fi
 }
 
+install_base() {
+  if [[ "$IsGlobal" == "1" ]];then
+    echo_info "执行【github】的脚本 ..."
+    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_base.sh)
+  else
+    echo_info "执行【gitee】的脚本 ..."
+    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_base.sh)
+  fi
+}
+
 install_docker() {
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
@@ -426,17 +436,14 @@ nameserver 127.0.0.1
 nameserver 8.8.8.8
 EOF
   else
-  echo_info "223.5.5.5 设置中。。。"
+  echo_info "114.114.114.114 设置中。。。"
   cat >/etc/resolv.conf <<'EOF'
 nameserver 127.0.0.1
-nameserver 223.5.5.5
+nameserver 114.114.114.114
 EOF
   fi
 
   judge "设置 nameserver"
-
-  chattr +i /etc/resolv.conf
-  judge "chattr +i /etc/resolv.conf 加锁"
 }
 
 get_opsy() {
@@ -745,13 +752,15 @@ menu() {
     echo -e "${GreenBG}—————————————— 安装向导 ——————————————${Font}"
     echo -e "${Green}0.${Font} 退出"
     echo -e "${Green}1.${Font} 系统优化"
-    echo -e "${Green}2.${Font} 安装 docker"
-    echo -e "${Green}3.${Font} 安装 on-my-zsh"
-    echo -e "${Green}4.${Font} 安装 ag"
-    echo -e "${Green}5.${Font} 更新 motd"
-    echo -e "${Green}6.${Font} 卸载 qemu-guest-agent"
-    echo -e "${Green}7.${Font} 虚拟内存设置"
-    echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7"
+    echo -e "${Green}2.${Font} 安装 系统基础"
+    echo -e "${Green}3.${Font} 安装 docker"
+    echo -e "${Green}4.${Font} 安装 on-my-zsh"
+    echo -e "${Green}5.${Font} 安装 ag"
+    echo -e "${Green}6.${Font} 更新 motd"
+    echo -e "${Green}7.${Font} 更新 nameserver"
+    echo -e "${Green}8.${Font} 卸载 qemu-guest-agent"
+    echo -e "${Green}9.${Font} 虚拟内存设置"
+    echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7、8"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
@@ -774,35 +783,45 @@ menu() {
         menu
         ;;
     2)
-        install_docker
+        install_base
         menu
         ;;
     3)
-        install_on_my_zsh
+        install_docker
         menu
         ;;
     4)
-        install_ag
+        install_on_my_zsh
         menu
         ;;
     5)
-        update_motd
+        install_ag
         menu
         ;;
     6)
-        apt -y autoremove --purge qemu-guest-agent
+        update_motd
         menu
         ;;
     7)
+        update_nameserver
+        menu
+        ;;
+    8)
+        apt -y autoremove --purge qemu-guest-agent
+        menu
+        ;;
+    9)
         update_swap
         menu
         ;;
     33)
         optimizing_system
+        install_base
         install_docker
         install_on_my_zsh
         install_ag
         update_motd
+        update_nameserver
         apt -y autoremove --purge qemu-guest-agent
         menu
         ;;

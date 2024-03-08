@@ -58,20 +58,6 @@ check_result() {
 }
 
 #获取系统相关参数
-#NAME="CentOS Linux"
-#VERSION="7 (Core)"
-#ID="centos"
-#ID_LIKE="rhel fedora"
-#VERSION_ID="7"
-#PRETTY_NAME="CentOS Linux 7 (Core)"
-#ANSI_COLOR="0;31"
-#CPE_NAME="cpe:/o:centos:centos:7"
-#HOME_URL="https://www.centos.org/"
-#BUG_REPORT_URL="https://bugs.centos.org/"
-#CENTOS_MANTISBT_PROJECT="CentOS-7"
-#CENTOS_MANTISBT_PROJECT_VERSION="7"
-#REDHAT_SUPPORT_PRODUCT="centos"
-#REDHAT_SUPPORT_PRODUCT_VERSION="7"
 # source 只有在bash下才可用
 source '/etc/os-release'
 
@@ -122,34 +108,6 @@ is_root() {
   fi
 }
 
-chrony_install() {
-  ${INS} -y install chrony
-  judge "安装 chrony 时间同步服务 "
-
-  timedatectl set-ntp true
-  check_result "设置系统时间同步服务"
-
-  if [[ "${ID}" == "centos" ]]; then
-      systemctl enable chronyd && systemctl restart chronyd
-  else
-      systemctl enable chrony && systemctl restart chrony
-  fi
-  judge "chronyd 启动 "
-
-  timedatectl set-timezone Asia/Shanghai
-  check_result "设置时区为 Asia/Shanghai"
-
-  echo_ok "等待时间同步，sleep 10"
-  sleep 10
-
-  chronyc sourcestats -v
-  check_result "查看时间同步源"
-  chronyc tracking -v
-  check_result "查看时间同步状态"
-  date
-  check_result "查看时间"
-}
-
 iptables_open() {
   iptables -P INPUT ACCEPT
   iptables -P FORWARD ACCEPT
@@ -162,40 +120,12 @@ iptables_open() {
   ip6tables -F
 }
 
-# 依赖安装
-dependency_install() {
+install_docker() {
+  is_root
+  check_system
 
-  ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
-  check_result "安装基础依赖"
-
-  # 系统监控工具
-  ${INS} install -y htop
-  judge "安装 系统监控工具 htop"
-  # 网络流量监控工具
-  ${INS} install -y iftop
-  judge "安装 网络流量监控工具 iftop"
-  # 现代化监控工具
-  ${INS} install -y btop
-  judge "安装 现代化监控工具 btop"
-  # 磁盘占用查看工具
-  ${INS} install -y gdu
-  judge "安装 磁盘占用查看工具 gdu"
-
-  # debian 安装git
-  ${INS} install git -y
-  judge "安装 git"
-
-  ${INS} -y install cron
-  judge "安装 crontab"
-
-  touch /var/spool/cron/crontabs/root && chmod 600 /var/spool/cron/crontabs/root
-  check_result "创建 crontab 文件"
-  systemctl start cron && systemctl enable cron
-  judge "启动 cron 服务"
-
-  ${INS} -y install libpcre3 libpcre3-dev zlib1g-dev
-  check_result "安装 libpcre3 libpcre3-dev zlib1g-dev"
-
+# iptables-persistent 是一个用于在 Debian 系统上保存和恢复 iptables 防火墙规则的工具
+# 它允许你在系统重启后保留之前设置的 iptables 规则，从而确保防火墙在重新启动后仍然有效。
 if dpkg -l | grep -q iptables-persistent; then
 
   echo_ok "防火墙已安装"
@@ -240,101 +170,6 @@ EOF
 
   echo_ok "防火墙安装完成"
 fi
-
-}
-
-# /etc/rc.local 开启启动程序开启
-rc_local_enable() {
-# 不存在才处理
-if [[ ! -f /etc/rc.local ]]; then
-  cat <<EOF >/etc/rc.local
-#!/bin/sh -e
-#
-# rc.local
-#
-# This script is executed at the end of each multiuser runlevel.
-# Make sure that the script will "exit 0" on success or any other
-# value on error.
-#
-# In order to enable or disable this script just change the execution
-# bits.
-#
-# By default this script does nothing.
-
-# 加载内核配置，否则会被覆盖
-sysctl --system
-
-echo "nameserver 127.0.0.1\nnameserver 8.8.8.8" > /etc/resolv.conf
-
-exit 0
-EOF
-check_result "创建 /etc/rc.local 文件"
-chmod +x /etc/rc.local
-# 启动时无视警告
-systemctl enable --now rc-local
-echo_ok "rc-local 设置开机启动（无视上面自启动警告）"
-
-fi
-
-# 使用 DHCP 钩子，禁止修改 /etc/resolv.conf
-if [[ ! -f /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate ]]; then
-  cat <<EOF >/etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
-#!/bin/sh
-make_resolv_conf(){
-    :
-}
-EOF
-check_result "创建 /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate 文件"
-chmod +x /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
-fi
-}
-
-# 安装防爆程序 fail2ban
-install_fail2ban() {
-
-  ${INS} install fail2ban -y
-  judge "安装 防爆程序 fail2ban"
-
-  # Fail2ban configurations.
-  # Reference: https://github.com/fail2ban/fail2ban/issues/2756
-  #            https://www.mail-archive.com/debian-bugs-dist@lists.debian.org/msg1879390.html
-  if ! grep -qE "^[^#]*allowipv6\s*=\s*auto" "/etc/fail2ban/fail2ban.conf"; then
-      sed -i '/^\[Definition\]/a allowipv6 = auto' /etc/fail2ban/fail2ban.conf;
-  fi
-  sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
-
-  # 清除默认配置
-  rm -rf /etc/fail2ban/jail.d/defaults-debian.conf
-  # 设置ssh配置
-  cat <<EOF >/etc/fail2ban/jail.d/sshd.local
-[sshd]
-enabled = true
-port = 12722
-# 忽略 IP/段
-ignoreip = 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1/8 ::1
-# 封禁的时长（天）
-bantime  = 30d
-# 此时长（分）内达到 maxretry 次就执行封禁动作
-findtime  = 30m
-# 匹配到的阈值（允许失败次数）
-maxretry = 2
-EOF
-
-  systemctl enable fail2ban
-  systemctl restart fail2ban
-  systemctl status fail2ban
-  echo_ok "防爆程序 fail2ban 设置完成"
-}
-
-install_docker() {
-  is_root
-  check_system
-  chrony_install
-  dependency_install
-  rc_local_enable
-  install_fail2ban
-  # 设置hostname解析，否则fail2ban会出现报错
-  hostname=$(hostname) && echo "127.0.0.1    $hostname" >> /etc/hosts
 
     echo_info "检测是否能ping谷歌"
     IsGlobal="0"

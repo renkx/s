@@ -46,10 +46,10 @@ bash ~/ag/conf/default/acme.sh
 bash <(curl -sSL https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcpx.sh)
 
 ## 程序安装 github
-bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_tool.sh)
 
 ## 程序安装 gitee
-bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker.sh)
+bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_tool.sh)
 ```
 
 ##### watchtower [p3terx地址](https://p3terx.com/archives/docker-watchtower.html) [地址](https://containrrr.dev/watchtower/arguments/)
