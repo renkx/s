@@ -191,8 +191,6 @@ if [[ ! -f /etc/rc.local ]]; then
 # 加载内核配置，否则会被覆盖
 sysctl --system
 
-echo "nameserver 127.0.0.1\nnameserver 8.8.8.8" > /etc/resolv.conf
-
 exit 0
 EOF
 check_result "创建 /etc/rc.local 文件"
