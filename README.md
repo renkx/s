@@ -97,7 +97,7 @@ wget --no-check-certificate -qO InstallNET.sh 'https://gitee.com/mb9e8j2/Tools/r
 bash InstallNET.sh -debian 12 -pwd '88889999' -port "12722"
 
 # debian 12 阿里镜像
-bash InstallNET.sh -debian 12 -pwd '88889999' -port "12722" -mirror "http://mirrors.aliyun.com/debian"
+bash InstallNET.sh -debian 12 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
 
 ```
 
