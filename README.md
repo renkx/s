@@ -128,7 +128,7 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 ## linode DD遇到问题：https://github.com/leitbogioro/Tools/issues/87
 ## linode、dmit、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug，dd脚本参数加：--autoplugadapter "0"
 
-#####   以下问题已经用rc.local自启逻辑解决
+#####
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
 ## systemctl status systemd-sysctl.service 可以看下具体报错
 ## 会出现【nf_conntrack: nf_conntrack: table full, dropping packet】错误，用itdog一直发送tcping就会产生
