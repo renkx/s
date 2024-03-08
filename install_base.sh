@@ -188,9 +188,6 @@ if [[ ! -f /etc/rc.local ]]; then
 #
 # By default this script does nothing.
 
-# 加载内核配置，否则会被覆盖
-sysctl --system
-
 exit 0
 EOF
 check_result "创建 /etc/rc.local 文件"
