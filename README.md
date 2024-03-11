@@ -127,6 +127,9 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 ## 需要安装 XANMOD官方内核(33)，并且删除旧内核，删除内核提示的时候选择NO (52)
 ## linode DD遇到问题：https://github.com/leitbogioro/Tools/issues/87
 ## linode、dmit、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug，dd脚本参数加：--autoplugadapter "0"
+## aws的新加坡比较好用，天津只是偶尔波动大。日本的北京晚高峰特别烂
+## misaka 21$ PCCW线路，晚高峰联通爆炸
+## zgocloud debian10可以dd，用debian11 dd会报磁盘错误（首次dd，没有二次尝试直接换10了）
 
 #####
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
@@ -138,7 +141,4 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 
 ## debian 12之前，系统日志：/var/log/messages，之后为 journalctl -ef
 ## https://www.debian.org/releases/stable/i386/release-notes/ch-information.zh-cn.html#changes-to-system-logging
-
-## aws的新加坡比较好用，天津只是偶尔波动大。日本的北京晚高峰特别烂
-## misaka 21$ PCCW线路，晚高峰联通爆炸
 ```
