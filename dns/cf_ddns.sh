@@ -49,12 +49,12 @@ if [[ -f $log_file ]]; then
 fi
 
 # SCRIPT START
-log "Check Initiated"
+echo -e "Check Initiated"
 
 if [ -f $ip_file ]; then
     old_ip=$(cat $ip_file)
     if [ "$old_ip" ] && [ $ip == $old_ip ]; then
-        echo "IP has not changed."
+        echo -e "IP has not changed."
         exit 1
     fi
 fi
@@ -74,7 +74,8 @@ if [ ! "$zone_identifier" ] || [ ! "$record_identifier" ];then
     else
         # 删除ID文件
         rm_id_file
-        echo "ID acquisition exception."
+        echo -e "ID acquisition exception."
+        log "ID acquisition exception."
         exit 1
     fi
 fi
@@ -91,5 +92,5 @@ else
     message="IP changed to: $ip"
     echo "$ip" > $ip_file
     log "$message"
-    echo "$message"
+    echo -e "$message"
 fi
