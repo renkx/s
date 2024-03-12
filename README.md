@@ -18,6 +18,8 @@ bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/ch
 bash <(wget -qO- bash.spiritlhl.net/ecs)
 ## 检测ChatGPT是否可用
 bash <(curl -sSL https://raw.githubusercontent.com/Netflixxp/chatGPT/main/chat.sh)
+## 循环消耗入站流量
+screen -dmS run bash -c "while true; do yt-dlp -o '~/test.mp4' -f 247 https://www.youtube.com/watch?v=fItf_CEb3jw && rm ~/test.mp4; done;"
 
 ## wgcf ipv6安装
 [nodeseek](https://www.nodeseek.com/post-23836-1)
