@@ -26,7 +26,7 @@ log_file=~/cf_ddns_cloudflare_${record_name}.log
 # LOGGER
 log() {
     if [ "$1" ]; then
-        echo -e "[$(date)] - $1" >> $log_file
+        echo -e "[`date '+%Y-%m-%d %H:%M:%S'`] - $1" >> $log_file
     fi
 }
 
