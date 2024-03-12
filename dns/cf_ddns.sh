@@ -38,6 +38,16 @@ rm_id_file() {
     fi
 }
 
+if [[ -f $log_file ]]; then
+  LOG_SIZE=$(du -sh -b $log_file | awk '{print $1}')
+  echo -e "日志文件大小 ${LOG_SIZE} byte"
+  # 50M=50*1024*1024
+  if [ ${LOG_SIZE} -gt 52428800 ]; then
+      echo -e "日志文件过大，删除日志文件。。。。"
+      rm $log_file
+  fi
+fi
+
 # SCRIPT START
 log "Check Initiated"
 
