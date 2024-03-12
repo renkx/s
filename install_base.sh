@@ -225,13 +225,15 @@ install_fail2ban() {
   fi
   sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
 
+  # 获取ssh端口
+  current_port=$(grep -E '^ *Port [0-9]+' /etc/ssh/sshd_config | awk '{print $2}')
   # 清除默认配置
   rm -rf /etc/fail2ban/jail.d/defaults-debian.conf
   # 设置ssh配置
   cat <<EOF >/etc/fail2ban/jail.d/sshd.local
 [sshd]
 enabled = true
-port = 12722
+port = $current_port
 # 忽略 IP/段
 ignoreip = 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1/8 ::1
 # 封禁的时长（天）
