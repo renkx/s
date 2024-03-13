@@ -23,6 +23,12 @@ ip_file=~/cf_ddns_ip_${record_name}.txt
 id_file=~/cf_ddns_cloudflare_${record_name}.ids
 log_file=~/cf_ddns_cloudflare_${record_name}.log
 
+echo_set() {
+  if [ "$1" ]; then
+      echo -e "[`date '+%Y-%m-%d %H:%M:%S'`] - $1"
+  fi
+}
+
 # LOGGER
 log() {
     if [ "$1" ]; then
@@ -40,21 +46,18 @@ rm_id_file() {
 
 if [[ -f $log_file ]]; then
   LOG_SIZE=$(du -sh -b $log_file | awk '{print $1}')
-  echo -e "日志文件大小 ${LOG_SIZE} byte"
+  echo_set "日志文件大小 ${LOG_SIZE} byte"
   # 50M=50*1024*1024
   if [ ${LOG_SIZE} -gt 52428800 ]; then
-      echo -e "日志文件过大，删除日志文件。。。。"
+      echo_set "日志文件过大，删除日志文件。。。。"
       rm $log_file
   fi
 fi
 
-# SCRIPT START
-echo -e "Check Initiated"
-
 if [ -f $ip_file ]; then
     old_ip=$(cat $ip_file)
     if [ "$old_ip" ] && [ $ip == $old_ip ]; then
-        echo -e "IP has not changed."
+        echo_set "IP has not changed."
         exit 1
     fi
 fi
@@ -74,7 +77,7 @@ if [ ! "$zone_identifier" ] || [ ! "$record_identifier" ];then
     else
         # 删除ID文件
         rm_id_file
-        echo -e "ID acquisition exception."
+        echo_set "ID acquisition exception."
         log "ID acquisition exception."
         exit 1
     fi
@@ -86,11 +89,11 @@ if [[ $update == *"\"success\":false"* ]]; then
     rm_id_file
     message="API UPDATE FAILED. DUMPING RESULTS:\n$update"
     log "$message"
-    echo -e "$message"
+    echo_set "$message"
     exit 1 
 else
     message="IP changed to: $ip"
     echo "$ip" > $ip_file
     log "$message"
-    echo -e "$message"
+    echo_set "$message"
 fi

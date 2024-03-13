@@ -38,6 +38,12 @@ fi
 ip_file=~/aliyun_ddns_ip_${var_second_level_domain}.txt
 log_file=~/aliyun_ddns_ali_${var_second_level_domain}.log
 
+echo_set() {
+  if [ "$1" ]; then
+      echo -e "[`date '+%Y-%m-%d %H:%M:%S'`] - $1"
+  fi
+}
+
 # LOGGER
 log() {
     if [ "$1" ]; then
@@ -47,10 +53,10 @@ log() {
 
 if [[ -f $log_file ]]; then
   LOG_SIZE=$(du -sh -b $log_file | awk '{print $1}')
-  echo -e "日志文件大小 ${LOG_SIZE} byte"
+  echo_set "日志文件大小 ${LOG_SIZE} byte"
   # 50M=50*1024*1024
   if [ ${LOG_SIZE} -gt 52428800 ]; then
-      echo -e "日志文件过大，删除日志文件。。。。"
+      echo_set "日志文件过大，删除日志文件。。。。"
       rm $log_file
   fi
 fi
@@ -58,7 +64,7 @@ fi
 if [ -f $ip_file ]; then
     old_ip=$(cat $ip_file)
     if [ "$old_ip" ] && [ $ip == $old_ip ]; then
-        echo "IP has not changed."
+        echo_set "IP has not changed."
         exit 1
     fi
 fi
@@ -142,7 +148,7 @@ var_domain_record_id=`fun_query_record_id_send | fun_get_record_id_regx`
 if [[ "${var_domain_record_id}" = "" ]]; then
     log_message="获取record_id为空,可能没有获取到有效的解析记录"
     log "$log_message"
-    echo -e "$log_message"
+    echo_set "$log_message"
     exit 1
 fi
 
@@ -156,19 +162,19 @@ if [[ "$code" = "" ]]; then
     log_message="IP changed to: $ip"
     echo "$ip" > $ip_file
     log "$log_message"
-    echo -e "$log_message"
+    echo_set "$log_message"
     exit 0
  else
     if [[ "$code" = "DomainRecordDuplicate" ]]; then
       log_message="domain record duplicate: $ip"
       echo "$ip" > $ip_file
       log "$log_message"
-      echo -e "$log_message"
+      echo_set "$log_message"
       exit 0
     else
       log_message="error code：$code error message：$message"
       log "$log_message"
-      echo -e "$log_message"
+      echo_set "$log_message"
       exit 1
     fi
 fi
