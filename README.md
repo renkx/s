@@ -116,6 +116,15 @@ journalctl --rotate
 journalctl --vacuum-time=1s
 journalctl --vacuum-size=50M
 apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}' | grep -v $(uname -r | sed 's/-.*//') | xargs) -y
+
+# 使用supervisor守护进程
+apt install -y supervisor
+systemctl status supervisor.service
+ln -sf ~/ag/conf/default/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
+
+supervisorctl status
+# 重新加载配置
+supervisorctl reload
 ```
 
 [私有agConf](https://github.com/renkx/myconf/tree/agconf)
