@@ -121,6 +121,7 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 apt install -y supervisor
 systemctl status supervisor.service
 ln -sf ~/ag/conf/default/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
+systemctl restart supervisor.service
 
 supervisorctl status
 # 重新加载配置
