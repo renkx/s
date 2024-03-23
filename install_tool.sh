@@ -397,10 +397,10 @@ nameserver 127.0.0.1
 nameserver 8.8.8.8
 EOF
   else
-  echo_info "114.114.114.114 设置中。。。"
+  echo_info "223.5.5.5 设置中。。。"
   cat >/etc/resolv.conf <<'EOF'
 nameserver 127.0.0.1
-nameserver 114.114.114.114
+nameserver 223.5.5.5
 EOF
   fi
 
