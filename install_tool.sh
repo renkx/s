@@ -259,6 +259,11 @@ net.ipv4.udp_rmem_min=8192
 net.ipv4.udp_wmem_min=8192
 net.core.default_qdisc=fq
 net.ipv4.tcp_congestion_control=bbr
+# 开启内核转发
+net.ipv4.conf.all.route_localnet=1
+net.ipv4.ip_forward=1
+net.ipv4.conf.all.forwarding=1
+net.ipv4.conf.default.forwarding=1
 # Linux 连接跟踪调优
 net.netfilter.nf_conntrack_max = 2621440
 net.netfilter.nf_conntrack_tcp_timeout_established=600
