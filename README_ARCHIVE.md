@@ -104,3 +104,10 @@ reboot
 apt-get autoremove
 
 ```
+
+#### acme操作
+```shell
+~/.acme.sh/acme.sh --list
+# 删除某个域名证书
+~/.acme.sh/acme.sh --remove --domain sp.20300808.xyz --ecc
+```
