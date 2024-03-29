@@ -803,7 +803,7 @@ detele_kernel() {
   # 判断是否为 Debian 系统
   if [[ "$os_info" == *"Debian"* ]]; then
     deb_total=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
-    if [ "${deb_total}" -gt "1" ]; then
+    if [ "${deb_total}" -ge 1 ]; then
       echo_info "检测到 ${deb_total} 个其余内核，开始卸载..."
       for ((integer = 1; integer <= ${deb_total}; integer++)); do
         deb_del=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
@@ -825,7 +825,7 @@ detele_kernel_head() {
   # 判断是否为 Debian 系统
   if [[ "$os_info" == *"Debian"* ]]; then
     deb_total=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
-    if [ "${deb_total}" -gt "1" ]; then
+    if [ "${deb_total}" -ge 1 ]; then
       echo_info "检测到 ${deb_total} 个其余head内核，开始卸载..."
       for ((integer = 1; integer <= ${deb_total}; integer++)); do
         deb_del=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
