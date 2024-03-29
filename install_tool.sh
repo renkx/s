@@ -793,6 +793,16 @@ check_sys_official_xanmod() {
   fi
 
   update_grub
+  # 获取最新内核版本编号
+  kernel_version=$(dpkg -l | grep linux-image | awk '{print $2}' | sort -r | head -n 1 | sed 's/linux-image-//')
+  echo_info "内核保留保留保留的内核关键词 $kernel_version"
+  if [ -z "$kernel_version" ]; then
+      echo_error "最新内核版本编号获取失败，不执行卸载其他内核操作"
+      exit 1
+  fi
+  detele_kernel
+  detele_kernel_head
+  update_grub
   echo_ok "内核安装完毕，请参考上面的信息检查是否安装成功,默认从排第一的高版本内核启动"
 }
 
