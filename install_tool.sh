@@ -19,12 +19,18 @@ Error="${Red}[错误]${Font}"
 
 # 直接开始系统优化
 export startOptimizing='0'
+# 直接开始安装xanmod内核
+export startInstallXanmod='0'
 
 while [[ $# -ge 1 ]]; do
 	case $1 in
 	--startOptimizing)
 		shift
 		startOptimizing="1"
+		;;
+	--startInstallXanmod)
+		shift
+		startInstallXanmod="1"
 		;;
 	*)
 		echo -ne "\nInvaild option: '$1'\n\n";
@@ -959,6 +965,9 @@ menu() {
 # 直接开始系统优化
 if [[ "$startOptimizing" == "1" ]]; then
   optimizing_system
+# 直接开始安装xanmod内核
+elif [[ "$startInstallXanmod" == "1" ]]; then
+  check_sys_official_xanmod
 else
   menu
 fi
