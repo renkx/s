@@ -782,6 +782,10 @@ check_sys_official_xanmod() {
 
   chmod +x check_x86-64_psabi.sh
   cpu_level=$(./check_x86-64_psabi.sh | awk -F 'v' '{print $2}')
+  if [ -z "$cpu_level" ]; then
+      echo "CPU级别获取异常！请查看 check_x86-64_psabi.sh 脚本"
+      exit 1
+  fi
   echo -e "CPU supports \033[32m${cpu_level}\033[0m"
   rm check_x86-64_psabi.sh
 
