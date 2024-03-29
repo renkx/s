@@ -707,6 +707,149 @@ EOF
     chmod +x /etc/update-motd.d/90-footer
 }
 
+# 检查磁盘空间
+check_disk_space() {
+    # 检查是否存在 bc 命令
+    if ! command -v bc &> /dev/null; then
+        echo "安装 bc 命令..."
+        # 检查系统类型并安装相应的 bc 包
+        if [ -f /etc/redhat-release ]; then
+            yum install -y bc
+        elif [ -f /etc/debian_version ]; then
+            apt-get update
+            apt-get install -y bc
+        else
+            echo_error "无法确定系统类型，请手动安装 bc 命令。"
+            return 1
+        fi
+    fi
+
+    # 获取当前磁盘剩余空间
+    available_space=$(df -h / | awk 'NR==2 {print $4}')
+
+    # 移除单位字符，例如"GB"，并将剩余空间转换为数字
+    available_space=$(echo $available_space | sed 's/G//')
+
+    # 如果剩余空间小于等于0，则输出警告信息
+    if [ $(echo "$available_space <= 0" | bc) -eq 1 ]; then
+        echo_error "警告：磁盘空间已用尽，请勿重启，先清理空间。建议先卸载刚才安装的内核来释放空间，仅供参考。"
+    else
+        echo_info "当前磁盘剩余空间：$available_space GB"
+    fi
+}
+
+# 更新引导
+update_grub() {
+  if _exists "update-grub"; then
+    update-grub
+  elif [ -f "/usr/sbin/update-grub" ]; then
+    /usr/sbin/update-grub
+  else
+    apt install grub2-common -y
+    update-grub
+  fi
+  check_disk_space
+}
+
+# 检查官方 xanmod 内核并安装
+check_sys_official_xanmod() {
+  # 获取系统信息
+  os_info=$(cat /etc/os-release 2>/dev/null)
+  # 判断是否为 Debian 系统
+  if [[ "$os_info" != *"Debian"* ]]; then
+      echo_error "不支持Debian以外的系统"
+      exit 1
+  fi
+
+  bit=$(uname -m)
+  if [[ ${bit} != "x86_64" ]]; then
+    echo_error "不支持x86_64以外的系统 !"
+    exit 1
+  fi
+
+  wget -O check_x86-64_psabi.sh https://dl.xanmod.org/check_x86-64_psabi.sh
+  # 检查下载是否成功
+  if [ $? -ne 0 ]; then
+      echo_error "文件下载失败，脚本将不会执行"
+      exit 1
+  fi
+
+  chmod +x check_x86-64_psabi.sh
+  cpu_level=$(./check_x86-64_psabi.sh | awk -F 'v' '{print $2}')
+  echo -e "CPU supports \033[32m${cpu_level}\033[0m"
+
+  apt update
+  apt-get install gnupg gnupg2 gnupg1 sudo -y
+  echo 'deb http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-kernel.list
+  wget -qO - https://dl.xanmod.org/gpg.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/xanmod-kernel.gpg add -
+  if [[ "${cpu_level}" == "4" ]]; then
+    apt update && apt install linux-xanmod-lts-x64v4 -y
+  elif [[ "${cpu_level}" == "3" ]]; then
+    apt update && apt install linux-xanmod-lts-x64v3 -y
+  elif [[ "${cpu_level}" == "2" ]]; then
+    apt update && apt install linux-xanmod-lts-x64v2 -y
+  else
+    apt update && apt install linux-xanmod-lts-x64v1 -y
+  fi
+
+  update_grub
+  echo_ok "内核安装完毕，请参考上面的信息检查是否安装成功,默认从排第一的高版本内核启动"
+}
+
+# 删除多余内核
+detele_kernel() {
+  # 获取系统信息
+  os_info=$(cat /etc/os-release 2>/dev/null)
+  # 判断是否为 Debian 系统
+  if [[ "$os_info" == *"Debian"* ]]; then
+    deb_total=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
+    if [ "${deb_total}" -gt "1" ]; then
+      echo_info "检测到 ${deb_total} 个其余内核，开始卸载..."
+      for ((integer = 1; integer <= ${deb_total}; integer++)); do
+        deb_del=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
+        echo_info "开始卸载 ${deb_del} 内核..."
+        apt-get purge -y ${deb_del}
+        apt-get autoremove -y
+        echo_info "卸载 ${deb_del} 内核卸载完成，继续..."
+      done
+      echo_info "内核卸载完毕，继续..."
+    else
+      echo_error " 检测到 内核 数量不正确，请检查 !" && exit 1
+    fi
+  fi
+}
+
+detele_kernel_head() {
+  # 获取系统信息
+  os_info=$(cat /etc/os-release 2>/dev/null)
+  # 判断是否为 Debian 系统
+  if [[ "$os_info" == *"Debian"* ]]; then
+    deb_total=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
+    if [ "${deb_total}" -gt "1" ]; then
+      echo_info "检测到 ${deb_total} 个其余head内核，开始卸载..."
+      for ((integer = 1; integer <= ${deb_total}; integer++)); do
+        deb_del=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
+        echo_info "开始卸载 ${deb_del} headers内核..."
+        apt-get purge -y ${deb_del}
+        apt-get autoremove -y
+        echo_info "卸载 ${deb_del} 内核卸载完成，继续..."
+      done
+      echo_info "内核卸载完毕，继续..."
+    else
+      echo_error " 检测到 内核 数量不正确，请检查 !" && exit 1
+    fi
+  fi
+}
+
+# 删除保留指定内核
+detele_kernel_custom() {
+  update_grub
+  read -p " 查看上面内核输入需保留保留保留的内核关键词(如:5.15.0-11) :" kernel_version
+  detele_kernel
+  detele_kernel_head
+  update_grub
+}
+
 menu() {
 
     echo
@@ -722,6 +865,8 @@ menu() {
     echo -e "${Green}8.${Font} 卸载 qemu-guest-agent"
     echo -e "${Green}9.${Font} 虚拟内存设置"
     echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7、8"
+    echo -e "${Green}88.${Font} 安装 XANMOD 官方内核"
+    echo -e "${Green}89.${Font} 删除保留指定内核"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
@@ -784,6 +929,14 @@ menu() {
         update_motd
         update_nameserver
         apt -y autoremove --purge qemu-guest-agent
+        menu
+        ;;
+    88)
+        check_sys_official_xanmod
+        menu
+        ;;
+    89)
+        detele_kernel_custom
         menu
         ;;
     *)
