@@ -783,6 +783,7 @@ check_sys_official_xanmod() {
   chmod +x check_x86-64_psabi.sh
   cpu_level=$(./check_x86-64_psabi.sh | awk -F 'v' '{print $2}')
   echo -e "CPU supports \033[32m${cpu_level}\033[0m"
+  rm check_x86-64_psabi.sh
 
   apt update
   apt-get install gnupg gnupg2 gnupg1 sudo -y
