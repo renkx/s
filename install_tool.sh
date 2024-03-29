@@ -734,7 +734,7 @@ check_disk_space() {
     available_space=$(df -h / | awk 'NR==2 {print $4}')
 
     # 移除单位字符，例如"GB"，并将剩余空间转换为数字
-    available_space=$(echo $available_space | sed 's/G//')
+    available_space=$(echo $available_space | sed 's/G//' | sed 's/M//')
 
     # 如果剩余空间小于等于0，则输出警告信息
     if [ $(echo "$available_space <= 0" | bc) -eq 1 ]; then
