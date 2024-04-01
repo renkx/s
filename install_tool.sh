@@ -841,7 +841,9 @@ detele_kernel() {
       done
       echo_info "内核卸载完毕，继续..."
     else
-      echo_error " 检测到 内核 数量不正确，请检查 !" && exit 1
+      echo_error " 检测到 内核 数量不正确，请检查 !"
+      update_grub
+      exit 1
     fi
   fi
 }
@@ -863,7 +865,9 @@ detele_kernel_head() {
       done
       echo_info "内核卸载完毕，继续..."
     else
-      echo_error " 检测到 内核 数量不正确，请检查 !" && exit 1
+      echo_error " 检测到 内核 数量不正确，请检查 !"
+      update_grub
+      exit 1
     fi
   fi
 }
