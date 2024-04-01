@@ -812,7 +812,7 @@ check_sys_official_xanmod_and_detele_kernel() {
   check_sys_official_xanmod
 
   # 获取最新内核版本编号
-  kernel_version=$(dpkg -l | grep linux-image | awk '{print $2}' | sort -r | head -n 1 | sed 's/linux-image-//')
+  kernel_version=$(dpkg -l | grep linux-image | awk '/xanmod/ {print $2}' | sort -r | head -n 1 | sed 's/linux-image-//')
   echo_info "内核保留保留保留的内核关键词 $kernel_version"
   if [ -z "$kernel_version" ]; then
       echo_error "最新内核版本编号获取失败，不执行卸载其他内核操作"
