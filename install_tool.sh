@@ -830,7 +830,10 @@ detele_kernel() {
   # 判断是否为 Debian 系统
   if [[ "$os_info" == *"Debian"* ]]; then
     deb_total=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
-    if [ "${deb_total}" -ge 1 ]; then
+    if [ "$deb_total" -eq 0 ]; then
+      echo_info "没有要卸载的内核。"
+      exit 1
+    elif [ "${deb_total}" -ge 1 ]; then
       echo_info "检测到 ${deb_total} 个其余内核，开始卸载..."
       for ((integer = 1; integer <= ${deb_total}; integer++)); do
         deb_del=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
@@ -854,18 +857,21 @@ detele_kernel_head() {
   # 判断是否为 Debian 系统
   if [[ "$os_info" == *"Debian"* ]]; then
     deb_total=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
-    if [ "${deb_total}" -ge 1 ]; then
+    if [ "$deb_total" -eq 0 ]; then
+      echo_info "没有要卸载的head内核。"
+      exit 1
+    elif [ "${deb_total}" -ge 1 ]; then
       echo_info "检测到 ${deb_total} 个其余head内核，开始卸载..."
       for ((integer = 1; integer <= ${deb_total}; integer++)); do
         deb_del=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
         echo_info "开始卸载 ${deb_del} headers内核..."
         apt-get purge -y ${deb_del}
         apt-get autoremove -y
-        echo_info "卸载 ${deb_del} 内核卸载完成，继续..."
+        echo_info "卸载 ${deb_del} head内核卸载完成，继续..."
       done
-      echo_info "内核卸载完毕，继续..."
+      echo_info "head内核卸载完毕，继续..."
     else
-      echo_error " 检测到 内核 数量不正确，请检查 !"
+      echo_error " 检测到 head内核 数量不正确，请检查 !"
       update_grub
       exit 1
     fi
