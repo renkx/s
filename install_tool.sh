@@ -804,6 +804,13 @@ check_sys_official_xanmod() {
   fi
 
   update_grub
+  echo_ok "内核安装完毕，请参考上面的信息检查是否安装成功,默认从排第一的高版本内核启动"
+}
+
+# 检查官方 xanmod 内核并安装和删除旧版内核
+check_sys_official_xanmod_and_detele_kernel() {
+  check_sys_official_xanmod
+
   # 获取最新内核版本编号
   kernel_version=$(dpkg -l | grep linux-image | awk '{print $2}' | sort -r | head -n 1 | sed 's/linux-image-//')
   echo_info "内核保留保留保留的内核关键词 $kernel_version"
@@ -814,7 +821,6 @@ check_sys_official_xanmod() {
   detele_kernel
   detele_kernel_head
   update_grub
-  echo_ok "内核安装完毕，请参考上面的信息检查是否安装成功,默认从排第一的高版本内核启动"
 }
 
 # 删除多余内核
@@ -886,7 +892,8 @@ menu() {
     echo -e "${Green}8.${Font} 卸载 qemu-guest-agent"
     echo -e "${Green}9.${Font} 虚拟内存设置"
     echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7、8"
-    echo -e "${Green}88.${Font} 安装 XANMOD 官方内核"
+    echo -e "${Green}87.${Font} 安装 XANMOD 官方内核"
+    echo -e "${Green}88.${Font} 安装 XANMOD 官方内核并删除旧内核"
     echo -e "${Green}89.${Font} 删除保留指定内核"
     echo -e "————————————————————————————————————————————————————————————————"
 
@@ -952,8 +959,12 @@ menu() {
         apt -y autoremove --purge qemu-guest-agent
         menu
         ;;
-    88)
+    87)
         check_sys_official_xanmod
+        menu
+        ;;
+    88)
+        check_sys_official_xanmod_and_detele_kernel
         menu
         ;;
     89)
@@ -972,7 +983,7 @@ if [[ "$startOptimizing" == "1" ]]; then
   optimizing_system
 # 直接开始安装xanmod内核
 elif [[ "$startInstallXanmod" == "1" ]]; then
-  check_sys_official_xanmod
+  check_sys_official_xanmod_and_detele_kernel
 else
   menu
 fi
