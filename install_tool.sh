@@ -794,14 +794,19 @@ check_sys_official_xanmod() {
   echo 'deb http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-kernel.list
   wget -qO - https://dl.xanmod.org/gpg.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/xanmod-kernel.gpg add -
   if [[ "${cpu_level}" == "4" ]]; then
-    apt update && apt install linux-xanmod-lts-x64v4 -y
+    apt update && apt install linux-xanmod-rt-x64v4 -y
   elif [[ "${cpu_level}" == "3" ]]; then
-    apt update && apt install linux-xanmod-lts-x64v3 -y
+    apt update && apt install linux-xanmod-rt-x64v3 -y
   elif [[ "${cpu_level}" == "2" ]]; then
-    apt update && apt install linux-xanmod-lts-x64v2 -y
+    apt update && apt install linux-xanmod-rt-x64v2 -y
   else
+    # rt版本没有v1，所以改为安装其他版本
     apt update && apt install linux-xanmod-lts-x64v1 -y
   fi
+
+  # 删除apt源，防止硬盘小的vps没有空间更新内核
+  rm /etc/apt/sources.list.d/xanmod-kernel.list
+  apt update
 
   update_grub
   echo_ok "内核安装完毕，请参考上面的信息检查是否安装成功,默认从排第一的高版本内核启动"
