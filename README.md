@@ -98,7 +98,7 @@ wget --no-check-certificate -qO InstallNET.sh 'https://gitee.com/mb9e8j2/Tools/r
 # debian 12 国内外自动切换镜像
 bash InstallNET.sh -debian 12 -pwd '88889999' -port "12722"
 
-# debian 12 阿里镜像
+# debian 12 中国科学技术大学（中科大）镜像
 bash InstallNET.sh -debian 12 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
 
 ```
@@ -153,3 +153,5 @@ supervisorctl reload
 ## debian 12之前，系统日志：/var/log/messages，之后为 journalctl -ef
 ## https://www.debian.org/releases/stable/i386/release-notes/ch-information.zh-cn.html#changes-to-system-logging
 ```
+
+#### [系统安装步骤](https://app.yinxiang.com/fx/4c75d6ad-a9fa-4aff-8914-28a19b7ad9a0)
