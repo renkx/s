@@ -10,9 +10,8 @@ bash <(curl -sL bash.icu/gb5)
 ## 检测解锁状态
 bash <(curl -L -s https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/check.sh)
 bash <(curl -L -s check.unlock.media)
-bash <(curl -L -s check.unlock.media) -P socks5://127.0.0.1:40000
 bash <(curl -L -s media.ispvps.com)
-bash <(curl -L -s media.ispvps.com) -P socks5://127.0.0.1:40000
+bash <(curl -L -s media.ispvps.com) -P http://127.0.0.1:10801
 bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/check.sh)
 ## VPS融合怪服务器测评脚本
 bash <(wget -qO- bash.spiritlhl.net/ecs)
