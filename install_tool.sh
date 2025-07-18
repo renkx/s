@@ -773,11 +773,9 @@ check_sys_official_xanmod() {
     exit 1
   fi
 
-  wget -O check_x86-64_psabi.sh https://dl.xanmod.org/check_x86-64_psabi.sh
-  # 检查下载是否成功
-  if [ $? -ne 0 ]; then
-      echo_error "文件下载失败，脚本将不会执行"
-      exit 1
+  if ! wget -O check_x86-64_psabi.sh https://dl.xanmod.org/check_x86-64_psabi.sh; then
+    echo_error "CPU 检测脚本下载失败"
+    exit 1
   fi
 
   chmod +x check_x86-64_psabi.sh
@@ -790,22 +788,23 @@ check_sys_official_xanmod() {
   rm check_x86-64_psabi.sh
 
   apt update
-  apt-get install gnupg gnupg2 gnupg1 sudo -y
-  echo 'deb http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-kernel.list
-  wget -qO - https://dl.xanmod.org/gpg.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/xanmod-kernel.gpg add -
-  if [[ "${cpu_level}" == "4" ]]; then
-    apt update && apt install linux-xanmod-rt-x64v4 -y
-  elif [[ "${cpu_level}" == "3" ]]; then
-    apt update && apt install linux-xanmod-rt-x64v3 -y
-  elif [[ "${cpu_level}" == "2" ]]; then
-    apt update && apt install linux-xanmod-rt-x64v2 -y
-  else
+  apt-get install gnupg sudo -y
+
+  wget -qO /usr/share/keyrings/xanmod-archive-keyring.gpg https://dl.xanmod.org/gpg.key
+  echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-kernel.list
+
+  apt update
+  case "$cpu_level" in
+    # 官方不单独发布 v4 包（因为 AVX-512 对内核没好处），直接用v3的包
+    4) apt install -y linux-xanmod-rt-x64v3 ;;
+    3) apt install -y linux-xanmod-rt-x64v3 ;;
+    2) apt install -y linux-xanmod-rt-x64v2 ;;
     # rt版本没有v1，所以改为安装其他版本
-    apt update && apt install linux-xanmod-lts-x64v1 -y
-  fi
+    *) apt install -y linux-xanmod-lts-x64v1 ;;
+  esac
 
   # 删除apt源，防止硬盘小的vps没有空间更新内核
-  rm /etc/apt/sources.list.d/xanmod-kernel.list
+  rm -f /etc/apt/sources.list.d/xanmod-kernel.list
   apt update
 
   update_grub
