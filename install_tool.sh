@@ -788,10 +788,10 @@ check_sys_official_xanmod() {
   rm check_x86-64_psabi.sh
 
   apt update
-  apt-get install gnupg sudo -y
+  apt-get install gnupg2 sudo -y
 
-  wget -qO /usr/share/keyrings/xanmod-archive-keyring.gpg https://dl.xanmod.org/gpg.key
-  echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-kernel.list
+  wget -qO - https://dl.xanmod.org/archive.key | sudo gpg --dearmor -vo /etc/apt/keyrings/xanmod-archive-keyring.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/xanmod-release.list
 
   apt update
   case "$cpu_level" in
@@ -804,7 +804,7 @@ check_sys_official_xanmod() {
   esac
 
   # 删除apt源，防止硬盘小的vps没有空间更新内核
-  rm -f /etc/apt/sources.list.d/xanmod-kernel.list
+  rm -f /etc/apt/sources.list.d/xanmod-release.list
   apt update
 
   update_grub
