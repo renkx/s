@@ -891,6 +891,19 @@ detele_kernel_custom() {
   update_grub
 }
 
+# 安装acme命令动态配置域名证书
+install_acme() {
+  if [[ "$IsGlobal" == "1" ]];then
+    echo_info "执行【github】的脚本 ..."
+    echo_info "bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf"
+    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf
+  else
+    echo_info "执行【gitee】的脚本 ..."
+    echo_info "bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh) ~/ag/conf/default/acme.conf"
+    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh) ~/ag/conf/default/acme.conf
+  fi
+}
+
 menu() {
 
     echo
@@ -905,6 +918,7 @@ menu() {
     echo -e "${Green}7.${Font} 更新 nameserver"
     echo -e "${Green}8.${Font} 卸载 qemu-guest-agent"
     echo -e "${Green}9.${Font} 虚拟内存设置"
+    echo -e "${Green}10.${Font} 安装acme命令动态配置域名证书"
     echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7、8"
     echo -e "${Green}87.${Font} 安装 XANMOD 官方内核"
     echo -e "${Green}88.${Font} 安装 XANMOD 官方内核并删除旧内核"
@@ -960,6 +974,10 @@ menu() {
         ;;
     9)
         update_swap
+        menu
+        ;;
+    10)
+        install_acme
         menu
         ;;
     33)
