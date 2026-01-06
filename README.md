@@ -41,7 +41,8 @@ ln -sf ~/ag/conf/default/docker.env ~/ag/.env
 ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 
 ## acme命令动态配置域名证书
-bash ~/ag/conf/default/acme.sh
+bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf
+bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh) ~/ag/conf/default/acme.conf
 
 # TCP加速 内核升级
 bash <(curl -sSL https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcpx.sh)

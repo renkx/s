@@ -34,28 +34,40 @@ log_file="$HOME_DIR/acme_install_cert.log"
 gen_install_cert() {
 
   for item in "${CERT_ITEMS[@]}"; do
-    IFS='|' read -r domain provider key_file fullchain_file <<< "$item"
+    # 公共的CF/ALI参数优先级较低，CERT_ITEMS里可以覆盖
+    IFS='|' read -r domain provider key_file fullchain_file VALUE1 VALUE2 VALUE3 <<< "$item"
 
     log_set "👉 处理域名: $domain (dns=$provider)"
     echo "👉 处理域名: $domain (dns=$provider)"
 
     case "$provider" in
       cf)
-        if [ -z "$CF_Token" ] || [ -z "$CF_Account_ID" ] || [ -z "$CF_Zone_ID" ]; then
+        # 优先使用 CERT_ITEMS 里的值，否则使用全局
+        TOKEN="${VALUE1:-$CF_Token}"
+        ACCOUNT_ID="${VALUE2:-$CF_Account_ID}"
+        ZONE_ID="${VALUE3:-$CF_Zone_ID}"
+
+        if [ -z "$TOKEN" ] || [ -z "$ACCOUNT_ID" ] || [ -z "$ZONE_ID" ]; then
           log_set "⚠️ 跳过 $domain：CF 参数不完整"
           echo "⚠️ 跳过 $domain：CF 参数不完整"
           continue
         fi
-        export CF_Token CF_Account_ID CF_Zone_ID
+
+        export CF_Token="$TOKEN" CF_Account_ID="$ACCOUNT_ID" CF_Zone_ID="$ZONE_ID"
         dns_type="dns_cf"
         ;;
       ali)
-        if [ -z "$Ali_Key" ] || [ -z "$Ali_Secret" ]; then
+        # 公共的CF/ALI参数优先级较低，CERT_ITEMS里可以覆盖
+        KEY="${VALUE1:-$Ali_Key}"
+        SECRET="${VALUE2:-$Ali_Secret}"
+
+        if [ -z "$KEY" ] || [ -z "$SECRET" ]; then
           log_set "⚠️ 跳过 $domain：Aliyun 参数不完整"
           echo "⚠️ 跳过 $domain：Aliyun 参数不完整"
           continue
         fi
-        export Ali_Key Ali_Secret
+
+        export Ali_Key="$KEY" Ali_Secret="$SECRET"
         dns_type="dns_ali"
         ;;
       *)
