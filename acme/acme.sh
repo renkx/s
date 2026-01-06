@@ -6,6 +6,12 @@ set -e
 # 获取跟路径
 HOME_DIR="${HOME:-/root}"
 
+# 加锁，保证唯一执行
+LOCK_FILE="/tmp/acme_install_cert.lock"
+exec 200>"$LOCK_FILE"
+flock -n 200 || { echo "❌ 脚本已经在运行中，退出"; exit 1; }
+trap 'rm -f "$LOCK_FILE"' EXIT
+
 # 从参数获取配置文件路径
 CONF_FILE="$1"
 if [ -z "$CONF_FILE" ] || [ ! -f "$CONF_FILE" ]; then
