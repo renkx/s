@@ -95,11 +95,11 @@ wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com
 # gitee 脚本下载
 wget --no-check-certificate -qO InstallNET.sh 'https://gitee.com/mb9e8j2/Tools/raw/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
 
-# debian 12 国内外自动切换镜像
-bash InstallNET.sh -debian 12 -pwd '88889999' -port "12722"
+# debian 国内外自动切换镜像
+bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722"
 
-# debian 12 中国科学技术大学（中科大）镜像
-bash InstallNET.sh -debian 12 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
+# debian 中国科学技术大学（中科大）镜像
+bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
 
 ```
 
