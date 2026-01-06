@@ -166,8 +166,14 @@ dependency_install() {
   systemctl start cron && systemctl enable cron
   judge "启动 cron 服务"
 
-  ${INS} -y install libpcre3 libpcre3-dev zlib1g-dev
-  check_result "安装 libpcre3 libpcre3-dev zlib1g-dev"
+  if [ "$(printf '%s\n' "$VERSION_ID" "13" | sort -V | head -n1)" = "13" ]; then
+    # debian版本大于等于13
+    ${INS} -y install libpcre2-dev zlib1g-dev
+    check_result "安装 libpcre2-dev zlib1g-dev"
+  else
+    ${INS} -y install libpcre3 libpcre3-dev zlib1g-dev
+    check_result "安装 libpcre3 libpcre3-dev zlib1g-dev"
+  fi
 }
 
 # /etc/rc.local 开启启动程序开启
@@ -198,6 +204,9 @@ echo_ok "rc-local 设置开机启动（无视上面自启动警告）"
 
 fi
 
+if ! command -v dhclient >/dev/null 2>&1; then
+echo "dhclient 未安装，跳过 resolv.conf hook"
+else
 # 使用 DHCP 钩子，禁止修改 /etc/resolv.conf
 if [[ ! -f /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate ]]; then
   cat <<EOF >/etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
@@ -209,6 +218,8 @@ EOF
 check_result "创建 /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate 文件"
 chmod +x /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
 fi
+fi
+
 }
 
 # 安装防爆程序 fail2ban
