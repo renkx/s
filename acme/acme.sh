@@ -28,7 +28,30 @@ RUNNER="$HOME_DIR/acme.sh"
 : "${CERT_ITEMS:?CERT_ITEMS 未定义}"
 
 ACME_INS="$HOME_DIR/.acme.sh/acme.sh"
-log_file="$HOME_DIR/acme_install_cert.log"
+LOG="/var/log/acme_install_cert.log"
+LOGROTATE_CONF="/etc/logrotate.d/acme_install_cert"
+
+# ===== 自动创建 logrotate 配置（只在不存在时） =====
+if [ ! -f "$LOGROTATE_CONF" ]; then
+  cat > "$LOGROTATE_CONF" <<EOF
+$LOG {
+    # 超过 10MB 才轮转
+    size 10M
+    # 最多保留 3 个旧日志
+    rotate 3
+    # gzip 压缩
+    compress
+    # 本次轮转先不压缩，等下一次再压缩
+    delaycompress
+    # 文件不存在不报错
+    missingok
+    # 空文件不轮转
+    notifempty
+    # 不影响正在写日志的脚本
+    copytruncate
+}
+EOF
+fi
 
 # 生成并安装证书
 gen_install_cert() {
@@ -39,8 +62,7 @@ gen_install_cert() {
     # 公共的CF/ALI参数优先级较低，CERT_ITEMS里可以覆盖
     IFS='|' read -r domain provider key_file fullchain_file VALUE1 VALUE2 VALUE3 <<< "$item"
 
-    log_set "👉 处理域名: $domain (dns=$provider)"
-    echo "👉 处理域名: $domain (dns=$provider)"
+    log "👉 处理域名: $domain (dns=$provider)"
 
     case "$provider" in
       cf)
@@ -50,8 +72,7 @@ gen_install_cert() {
         ZONE_ID="${VALUE3:-$CF_Zone_ID}"
 
         if [ -z "$TOKEN" ] || [ -z "$ACCOUNT_ID" ] || [ -z "$ZONE_ID" ]; then
-          log_set "⚠️ 跳过 $domain：CF 参数不完整"
-          echo "⚠️ 跳过 $domain：CF 参数不完整"
+          log "⚠️ 跳过 $domain：CF 参数不完整"
           continue
         fi
 
@@ -64,8 +85,7 @@ gen_install_cert() {
         SECRET="${VALUE2:-$Ali_Secret}"
 
         if [ -z "$KEY" ] || [ -z "$SECRET" ]; then
-          log_set "⚠️ 跳过 $domain：Aliyun 参数不完整"
-          echo "⚠️ 跳过 $domain：Aliyun 参数不完整"
+          log "⚠️ 跳过 $domain：Aliyun 参数不完整"
           continue
         fi
 
@@ -73,8 +93,7 @@ gen_install_cert() {
         dns_type="dns_ali"
         ;;
       *)
-        log_set "❌ 未知 DNS provider: $provider"
-        echo "❌ 未知 DNS provider: $provider"
+        log "❌ 未知 DNS provider: $provider"
         continue
         ;;
     esac
@@ -84,8 +103,7 @@ gen_install_cert() {
       --keylength ec-256 \
       --force \
       -d "$domain"; then
-      log_set "❌ 申请证书失败: $domain"
-      echo "❌ 申请证书失败: $domain"
+      log "❌ 申请证书失败: $domain"
       continue
     fi
 
@@ -94,46 +112,36 @@ gen_install_cert() {
       --key-file "$key_file" \
       --fullchain-file "$fullchain_file"
 
-    log_set "✅ 证书安装成功: $domain"
-    echo "✅ 证书安装成功: $domain"
+    log "✅ 证书安装成功: $domain"
     # 成功标记
     any_success=1
   done
 
   # 没有任何域名成功，不执行后置命令
   [ "$any_success" -ne 1 ] && {
-    log_set "ℹ️ 本次没有任何证书申请成功，跳过后置命令"
-    echo "ℹ️ 本次没有任何证书申请成功，跳过后置命令"
+    log "ℹ️ 本次没有任何证书申请成功，跳过后置命令"
     return
   }
 
   [ -z "${POST_HOOK_COMMANDS+x}" ] && return
   [ ${#POST_HOOK_COMMANDS[@]} -eq 0 ] && return
 
-  log_set "👉 执行证书后置命令"
-  echo "👉 执行证书后置命令"
+  log "👉 执行证书后置命令"
 
   for cmd in "${POST_HOOK_COMMANDS[@]}"; do
-    log_set "➡️ $cmd"
-    echo "➡️ $cmd"
+    log "➡️ $cmd"
     bash -c "$cmd"
     if [ $? -ne 0 ]; then
-      log_set "⚠️ 后置命令执行失败: $cmd"
-      echo "⚠️ 后置命令执行失败: $cmd"
+      log "⚠️ 后置命令执行失败: $cmd"
     fi
   done
 }
 
-# LOGGER
-log_set() {
-    if [ ! -f $log_file ]; then
-        touch $log_file
-    fi
-
-    if [ "$1" ]; then
-        t1=`date "+%Y-%m-%d %H:%M:%S"`
-        echo -e "[$t1] - $1" >> $log_file
-    fi
+# 终端可见 + 写日志 + 重定向 stdout
+log() {
+  local msg
+  msg="$(date '+%F %T') $1"
+  echo "$msg" | tee -a "$LOG"
 }
 
 # 设置 crontab 任务 ：每月1号和15号 执行脚本
@@ -141,8 +149,7 @@ set_cronjob() {
   _CRONTAB="crontab"
 
   [ -f "$RUNNER" ] || {
-    log_set "❌ runner 不存在，跳过 cron 设置"
-    echo "❌ runner 不存在，跳过 cron 设置"
+    log "❌ runner 不存在，跳过 cron 设置"
     return 1
   }
 
@@ -159,8 +166,7 @@ set_cronjob() {
   # 安装新的 crontab
   echo "$new_cron" | $_CRONTAB -
 
-  log_set "✅ crontab 已更新"
-  echo "✅ crontab 已更新"
+  log "✅ crontab 已更新"
 }
 
 # 生成本地可执行脚本
@@ -187,8 +193,7 @@ fi
 EOF
 
   chmod +x "$RUNNER"
-  log_set "✅ 已生成 cron: $RUNNER"
-  echo "✅ 已生成 cron: $RUNNER"
+  log "✅ 已生成 cron: $RUNNER"
 }
 
 if [ ! -f $ACME_INS ]; then
@@ -199,16 +204,6 @@ fi
 # 使用letsencrypt为默认服务 zerossl的网络有时候不通
 # ${ACME_INS} --register-account -m m@renkx.com --server zerossl && ${ACME_INS} --set-default-ca --server zerossl
 ${ACME_INS} --set-default-ca --server letsencrypt
-
-if [[ -f $log_file ]]; then
-  LOG_SIZE=$(du -sh -b $log_file | awk '{print $1}')
-  echo -e "日志文件大小 ${LOG_SIZE} byte"
-  # 50M=50*1024*1024
-  if [ ${LOG_SIZE} -gt 52428800 ]; then
-      echo -e "日志文件过大，删除日志文件。。。。"
-      rm $log_file
-  fi
-fi
 
 generate_acme
 set_cronjob
