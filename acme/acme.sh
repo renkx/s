@@ -32,6 +32,8 @@ log_file="$HOME_DIR/acme_install_cert.log"
 
 # 生成并安装证书
 gen_install_cert() {
+  # 成功标记
+  any_success=0
 
   for item in "${CERT_ITEMS[@]}"; do
     # 公共的CF/ALI参数优先级较低，CERT_ITEMS里可以覆盖
@@ -94,7 +96,16 @@ gen_install_cert() {
 
     log_set "✅ 证书安装成功: $domain"
     echo "✅ 证书安装成功: $domain"
+    # 成功标记
+    any_success=1
   done
+
+  # 没有任何域名成功，不执行后置命令
+  [ "$any_success" -ne 1 ] && {
+    log_set "ℹ️ 本次没有任何证书申请成功，跳过后置命令"
+    echo "ℹ️ 本次没有任何证书申请成功，跳过后置命令"
+    return
+  }
 
   [ -z "${POST_HOOK_COMMANDS+x}" ] && return
   [ ${#POST_HOOK_COMMANDS[@]} -eq 0 ] && return
