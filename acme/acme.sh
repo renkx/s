@@ -23,7 +23,7 @@ fi
 source "$CONF_FILE"
 
 # 最后生成的本地脚本文件
-RUNNER="$HOME_DIR/ag/conf/default/acme.sh"
+RUNNER="$HOME_DIR/acme.sh"
 
 : "${CERT_ITEMS:?CERT_ITEMS 未定义}"
 
