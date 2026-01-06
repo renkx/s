@@ -117,15 +117,21 @@ set_cronjob() {
     return 1
   }
 
-  if ! $_CRONTAB -l 2>/dev/null | grep -F "$RUNNER" >/dev/null; then
-    $_CRONTAB -l 2>/dev/null | {
-      cat
-      echo "0 0 1,15 * * bash $RUNNER > /dev/null 2>&1"
-    } | $_CRONTAB -
-  fi
+  # 获取当前 crontab
+  current_cron="$($_CRONTAB -l 2>/dev/null || true)"
 
-  log_set "✅ crontab 已设置"
-  echo "✅ crontab 已设置"
+  # 删除已有包含 $RUNNER 的行
+  new_cron="$(echo "$current_cron" | grep -vF "$RUNNER")"
+
+  # 添加最新的 cron
+  new_cron="$new_cron
+0 0 1,15 * * bash $RUNNER $CONF_FILE > /dev/null 2>&1"
+
+  # 安装新的 crontab
+  echo "$new_cron" | $_CRONTAB -
+
+  log_set "✅ crontab 已更新"
+  echo "✅ crontab 已更新"
 }
 
 # 生成本地可执行脚本
