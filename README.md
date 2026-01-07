@@ -10,6 +10,7 @@ bash <(curl -sL bash.icu/gb5)
 ## 检测解锁状态
 bash <(curl -L -s https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/check.sh)
 bash <(curl -L -s check.unlock.media)
+bash <(curl -L -s check.unlock.media) -P http://127.0.0.1:10801
 bash <(curl -L -s media.ispvps.com)
 bash <(curl -L -s media.ispvps.com) -P http://127.0.0.1:10801
 bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/check.sh)
