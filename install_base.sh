@@ -108,8 +108,10 @@ is_root() {
 }
 
 chrony_install() {
-  ${INS} -y install chrony
-  judge "安装 chrony 时间同步服务 "
+  if ! command -v chronyd &>/dev/null && ! command -v chrony &>/dev/null; then
+      ${INS} -y install chrony
+      judge "安装 chrony 时间同步服务 "
+  fi
 
   timedatectl set-ntp true
   check_result "设置系统时间同步服务"
@@ -124,8 +126,29 @@ chrony_install() {
   timedatectl set-timezone Asia/Shanghai
   check_result "设置时区为 Asia/Shanghai"
 
-  echo_ok "等待时间同步，sleep 10"
-  sleep 10
+  echo_ok "等待 Chrony 同步时间中..."
+  MAX_WAIT=60    # 最多等待 60 秒
+  INTERVAL=2     # 每 2 秒检查一次
+  elapsed=0
+
+  while true; do
+      # 获取系统与 NTP 偏差（以秒为单位）
+      offset=$(chronyc tracking 2>/dev/null | awk '/System time/ {print $4}')
+      offset=${offset%.*}  # 去掉小数部分
+      offset=${offset#-}   # 取绝对值
+
+      if [[ -n "$offset" && "$offset" -le 1 ]]; then
+          echo_ok "时间同步完成，系统与 NTP 偏差：${offset} 秒"
+          break
+      fi
+
+      sleep $INTERVAL
+      elapsed=$((elapsed + INTERVAL))
+      if [[ $elapsed -ge $MAX_WAIT ]]; then
+          echo_error "等待超时，当前系统时间与 NTP 偏差：${offset:-未知} 秒"
+          break
+      fi
+  done
 
   chronyc sourcestats -v
   check_result "查看时间同步源"
