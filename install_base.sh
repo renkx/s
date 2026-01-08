@@ -161,7 +161,11 @@ chrony_install() {
 # 依赖安装
 dependency_install() {
 
-  ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
+  # 预设 iperf3 不启动 daemon（自动选择 N）
+  echo "iperf3 iperf3/start_daemon boolean false" | debconf-set-selections
+
+  # DEBIAN_FRONTEND=noninteractive + -y 避免任何交互界面，放在一行 DEBIAN_FRONTEND 临时生效
+  DEBIAN_FRONTEND=noninteractive ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
   check_result "安装基础依赖"
 
   # 系统监控工具
