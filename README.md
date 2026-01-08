@@ -85,7 +85,6 @@ bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722"
 # debian 中国科学技术大学（中科大）镜像
 bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
 
-## 当前才能DD的：dmit
 ## 当前不能DD的：搬瓦工（有几率无线重启）、aws（重启就断连）
 ```
 
@@ -101,7 +100,6 @@ curl -O https://cnb.cool/bin456789/reinstall/-/git/raw/main/reinstall.sh || wget
 bash reinstall.sh debian 13 --password '88889999' --ssh-port '12722'
 
 ## 当前才能DD的：搬瓦工、aws
-## 当前不能DD的：dmit（网络错误）
 ```
 
 ```shell
@@ -127,9 +125,8 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 
 ##### 相关说明
 ```shell
-## 需要安装 XANMOD官方内核(33)，并且删除旧内核，删除内核提示的时候选择NO (52)
 ## linode DD遇到问题：https://github.com/leitbogioro/Tools/issues/87
-## linode、dmit、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug，dd脚本参数加：--autoplugadapter "0"
+## linode、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug，dd脚本参数加：--autoplugadapter "0"
 ## aws的新加坡比较好用，天津只是偶尔波动大。日本的北京晚高峰特别烂
 ## misaka 21$ PCCW线路，晚高峰联通爆炸
 ## zgocloud debian10可以dd，用debian11 dd会报磁盘错误（首次dd，没有二次尝试直接换10了）
