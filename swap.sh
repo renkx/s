@@ -23,6 +23,8 @@ ovz_no(){
 
 # 显示内存和 swap，区分 swap 分区和 /swapfile
 show_mem_swap(){
+  # 显示最新内存和 swap 使用情况
+  echo -e "\n${Green}=== 当前内存和 swap 状态 ===${Font}"
   # 物理内存
   mem_info=$(free -b | awk 'NR==2{printf "%.2f/%.2f MB (%.2f%%)", $3/1024/1024, $2/1024/1024, $3*100/$2}')
   echo -e "当前物理内存: ${Green}$mem_info${Font}"
@@ -38,9 +40,10 @@ show_mem_swap(){
       echo -e "  ${Yellow}无 swap${Font}"
   else
       # 遍历 /proc/swaps
-      awk 'NR>1 {printf "  %-15s %-8s MB  已用 %-8s MB\n", $1, $2/1024, $3/1024}' /proc/swaps
+      awk 'NR>1 {printf "  %-15s %-8d MB  已用 %-8d MB\n", $1, $3/1024, $4/1024}' /proc/swaps
       echo -e "  总计: ${swap_used}/${swap_total} MB (${swap_percentage}%)"
   fi
+  echo -e "================================\n"
 }
 
 # 清理所有 swap
@@ -112,10 +115,7 @@ create_swapfile(){
 
   echo -e "虚拟内存大小已调整为 ${Green}${new_swap}${Font} MB"
 
-  # 显示最新内存和 swap 使用情况
-  echo -e "\n${Green}=== 当前内存和 swap 状态 ===${Font}"
   show_mem_swap
-  echo -e "================================\n"
 }
 
 # 主菜单
