@@ -196,28 +196,31 @@ if [[ ! -f /etc/rc.local ]]; then
 
 exit 0
 EOF
-check_result "创建 /etc/rc.local 文件"
-chmod +x /etc/rc.local
-# 启动时无视警告
-systemctl enable --now rc-local
-echo_ok "rc-local 设置开机启动（无视上面自启动警告）"
-
+  check_result "创建 /etc/rc.local 文件"
+  chmod +x /etc/rc.local
+  # 启动时无视警告
+  systemctl enable --now rc-local
+  echo_ok "rc-local 设置开机启动（无视上面自启动警告）"
 fi
 
+##### /etc/resolv.conf 不能修改，以下是处理逻辑：#####
+# dhclient 这个是debian13之前使用的，13之后就没了
+# 以下设置可以不用设置了，统一使用 chattr +i /etc/resolv.conf 加锁的形式，禁止更改
 if ! command -v dhclient >/dev/null 2>&1; then
-echo "dhclient 未安装，跳过 resolv.conf hook"
+  echo "dhclient 未安装，跳过 resolv.conf hook"
 else
 # 使用 DHCP 钩子，禁止修改 /etc/resolv.conf
-if [[ ! -f /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate ]]; then
-  cat <<EOF >/etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
+  if [[ ! -f /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate ]]; then
+    cat <<EOF >/etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
 #!/bin/sh
+# 禁止 dhclient 修改 /etc/resolv.conf
 make_resolv_conf(){
     :
 }
 EOF
-check_result "创建 /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate 文件"
-chmod +x /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
-fi
+  check_result "创建 /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate 文件"
+  chmod +x /etc/dhcp/dhclient-enter-hooks.d/nodnsupdate
+  fi
 fi
 
 }

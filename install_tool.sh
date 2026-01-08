@@ -409,8 +409,8 @@ nameserver 127.0.0.1
 nameserver 223.5.5.5
 EOF
   fi
-
-  judge "设置 nameserver"
+  chattr +i /etc/resolv.conf
+  judge "设置 nameserver 并 chattr +i /etc/resolv.conf 加锁"
 }
 
 get_opsy() {
