@@ -130,6 +130,8 @@ if dpkg -l | grep -q iptables-persistent; then
 
   echo_ok "防火墙已安装"
 else
+  # 关闭所有交互界面 让包管理器使用 默认值（debconf 中预设的默认选项）来安装
+  export DEBIAN_FRONTEND=noninteractive
 
   echo_ok "安装防火墙，进入安装流程.."
   iptables_open
