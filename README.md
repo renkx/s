@@ -139,7 +139,7 @@ supervisorctl reload
 ## aws的新加坡比较好用，天津只是偶尔波动大。日本的北京晚高峰特别烂
 ## misaka 21$ PCCW线路，晚高峰联通爆炸
 ## zgocloud debian10可以dd，用debian11 dd会报磁盘错误（首次dd，没有二次尝试直接换10了）
-## 搬瓦工只要开启了ipv6，就DD不了系统，会报镜像错误，看日志是网络配置问题，看脚本后续会不会修复
+## 搬瓦工迁移之后连不上网，有可能是 /etc/network/interfaces 的配置和 ip a 看到的不一样，改一下就行
 
 #####
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
