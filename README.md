@@ -86,6 +86,7 @@ bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722"
 bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
 
 ## 当前才能DD的：dmit
+## 当前不能DD的：搬瓦工（有几率无线重启）、aws（重启就断连）
 ```
 
 ##### bin456789 [github地址](https://github.com/bin456789/reinstall)
@@ -100,6 +101,7 @@ curl -O https://cnb.cool/bin456789/reinstall/-/git/raw/main/reinstall.sh || wget
 bash reinstall.sh debian 13 --password '88889999' --ssh-port '12722'
 
 ## 当前才能DD的：搬瓦工、aws
+## 当前不能DD的：dmit（网络错误）
 ```
 
 ```shell
