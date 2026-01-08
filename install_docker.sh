@@ -142,17 +142,11 @@ else
   apt update -y && apt install -y iptables-persistent
   check_result "安装 iptables-persistent"
 
-  # 明确使用 legacy iptables，防止 Debian 13 默认 nftables 导致规则不生效
-  # debian 13中如果不切换，下面的 iptables-restore < /etc/iptables/rules.v4 会报错
-  update-alternatives --set iptables /usr/sbin/iptables-legacy
-  update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
-  echo_ok "切换到 iptables-legacy"
-
   rm -f /etc/iptables/rules.v4
   echo_ok "删除原有的 /etc/iptables/rules.v4"
 
   # 获取ssh端口
-  current_port=$(grep -E '^ *Port [0-9]+' /etc/ssh/sshd_config | awk '{print $2}')
+  current_port=$(ss -tlnp | grep sshd | awk '{print $4}' | grep -oE '[0-9]+$' | head -n1)
   current_port=${current_port:-22}
 
   cat > /etc/iptables/rules.v4 << EOF

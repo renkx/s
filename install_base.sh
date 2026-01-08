@@ -240,7 +240,8 @@ install_fail2ban() {
   sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
 
   # 获取ssh端口
-  current_port=$(grep -E '^ *Port [0-9]+' /etc/ssh/sshd_config | awk '{print $2}')
+  current_port=$(ss -tlnp | grep sshd | awk '{print $4}' | grep -oE '[0-9]+$' | head -n1)
+  current_port=${current_port:-22}
   # 清除默认配置
   rm -rf /etc/fail2ban/jail.d/defaults-debian.conf
   # 设置ssh配置
@@ -262,7 +263,13 @@ EOF
   systemctl restart fail2ban
   systemctl status fail2ban
   # 设置hostname解析，否则fail2ban会出现报错
-  hostname=$(hostname) && echo "127.0.0.1    $hostname" >> /etc/hosts
+  # 获取当前 hostname
+  hostname=$(hostname)
+  # 如果 /etc/hosts 中不存在这一行才追加
+  if ! grep -q "127.0.0.1[[:space:]]\+$hostname" /etc/hosts; then
+      echo "127.0.0.1    $hostname" >> /etc/hosts
+      echo_ok "已添加 hostname 解析到 /etc/hosts"
+  fi
   echo_ok "防爆程序 fail2ban 设置完成"
 }
 
