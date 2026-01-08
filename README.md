@@ -88,19 +88,16 @@ curl nxtrace.org/nt |bash
 curl -fsSL git.io/speedtest-cli.sh | bash
 ```
 
-##### LeitboGi0ro [github地址](https://github.com/leitbogioro/Tools) [nodeseek地址](https://www.nodeseek.com/post-9383-1)
+##### bin456789 [github地址](https://github.com/bin456789/reinstall)
 ```shell
-# github 脚本下载
-wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
+# 国外服务器：
+curl -O https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh || wget -O ${_##*/} $_
 
-# gitee 脚本下载
-wget --no-check-certificate -qO InstallNET.sh 'https://gitee.com/mb9e8j2/Tools/raw/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
+# 国内服务器：
+curl -O https://cnb.cool/bin456789/reinstall/-/git/raw/main/reinstall.sh || wget -O ${_##*/} $_
 
 # debian 国内外自动切换镜像
-bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722"
-
-# debian 中国科学技术大学（中科大）镜像
-bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
+bash reinstall.sh debian 13 --password '88889999' --ssh-port '12722'
 
 ```
 
