@@ -88,22 +88,6 @@ wget -N --no-check-certificate https://gitee.com/renkx/dd/raw/main/network-reins
 
 ```
 
-##### LeitboGi0ro [github地址](https://github.com/leitbogioro/Tools) [nodeseek地址](https://www.nodeseek.com/post-9383-1)
-```shell
-# github 脚本下载
-wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
-
-# gitee 脚本下载
-wget --no-check-certificate -qO InstallNET.sh 'https://gitee.com/mb9e8j2/Tools/raw/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
-
-# debian 国内外自动切换镜像
-bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722"
-
-# debian 中国科学技术大学（中科大）镜像
-bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
-
-```
-
 ##### 手动升级debian系统
 ```shell
 # 更新系统到最新

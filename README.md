@@ -55,23 +55,6 @@ bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_tool.sh)
 bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_tool.sh)
 ```
 
-##### watchtower [p3terx地址](https://p3terx.com/archives/docker-watchtower.html) [地址](https://containrrr.dev/watchtower/arguments/)
-```shell
-$ 自动更新
-docker run -d \
-    --name watchtower \
-    --init \
-    --restart unless-stopped \
-    --log-opt max-size=1m \
-    --log-opt max-file=3 \
-    -e TZ=Asia/Shanghai \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    containrrr/watchtower -c \
-    --interval 300
-# 运行完删除watchtower容器
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR xxx
-```
-
 ##### iptablesUtils [github](https://github.com/arloor/iptablesUtils)
 ```shell
 # github
@@ -88,6 +71,23 @@ curl nxtrace.org/nt |bash
 curl -fsSL git.io/speedtest-cli.sh | bash
 ```
 
+##### LeitboGi0ro [github地址](https://github.com/leitbogioro/Tools) [nodeseek地址](https://www.nodeseek.com/post-9383-1)
+```shell
+# github 脚本下载
+wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
+
+# gitee 脚本下载
+wget --no-check-certificate -qO InstallNET.sh 'https://gitee.com/mb9e8j2/Tools/raw/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
+
+# debian 国内外自动切换镜像
+bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722"
+
+# debian 中国科学技术大学（中科大）镜像
+bash InstallNET.sh -debian 13 -pwd '88889999' -port "12722" -mirror "http://mirrors.ustc.edu.cn/debian"
+
+## 当前才能DD的：dmit
+```
+
 ##### bin456789 [github地址](https://github.com/bin456789/reinstall)
 ```shell
 # 国外服务器：
@@ -99,6 +99,7 @@ curl -O https://cnb.cool/bin456789/reinstall/-/git/raw/main/reinstall.sh || wget
 # debian 国内外自动切换镜像
 bash reinstall.sh debian 13 --password '88889999' --ssh-port '12722'
 
+## 当前才能DD的：搬瓦工、aws
 ```
 
 ```shell
@@ -114,15 +115,6 @@ journalctl --rotate
 journalctl --vacuum-time=1s
 journalctl --vacuum-size=50M
 apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}' | grep -v $(uname -r | sed 's/-.*//') | xargs) -y
-
-# 使用supervisor守护进程
-apt install -y supervisor
-ln -sf ~/ag/conf/default/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
-systemctl restart supervisor.service
-
-supervisorctl status
-# 重新加载配置
-supervisorctl reload
 ```
 
 [私有agConf](https://github.com/renkx/myconf/tree/agconf)

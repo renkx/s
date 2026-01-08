@@ -98,3 +98,20 @@ docker run -d \
     -v ~/ag/conf/default/:/base/ag/ \
     tindy2013/subconverter:0.8.1
 ```
+
+##### watchtower [p3terx地址](https://p3terx.com/archives/docker-watchtower.html) [地址](https://containrrr.dev/watchtower/arguments/)
+```shell
+$ 自动更新
+docker run -d \
+    --name watchtower \
+    --init \
+    --restart unless-stopped \
+    --log-opt max-size=1m \
+    --log-opt max-file=3 \
+    -e TZ=Asia/Shanghai \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    containrrr/watchtower -c \
+    --interval 300
+# 运行完删除watchtower容器
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR xxx
+```
