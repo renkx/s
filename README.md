@@ -140,6 +140,7 @@ supervisorctl reload
 ## misaka 21$ PCCW线路，晚高峰联通爆炸
 ## zgocloud debian10可以dd，用debian11 dd会报磁盘错误（首次dd，没有二次尝试直接换10了）
 ## 搬瓦工迁移之后连不上网，有可能是 /etc/network/interfaces 的配置和 ip a 看到的不一样，改一下就行，改完重启：systemctl restart networking
+## 如果网络配置文件被反复修改导致网络连接不上，就锁死：chattr +i /etc/network/interfaces
 
 #####
 ## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
