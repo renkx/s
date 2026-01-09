@@ -1,22 +1,24 @@
 #!/bin/bash
 set -e
 
-COMPOSE_DIR="${1:-}"
+COMPOSE_DIRS=("$@")
 
-# 存在目录参数，才校验
-if [ -n "$COMPOSE_DIR" ]; then
-  if [ ! -d "$COMPOSE_DIR" ]; then
-    echo "Error: directory not found: $COMPOSE_DIR"
-    exit 1
+# 有效compose目录
+VALID_COMPOSE_DIRS=()
+# 校验compose目录
+for dir in "${COMPOSE_DIRS[@]}"; do
+  if [ ! -d "$dir" ]; then
+    echo "❌ directory not found: $dir"
+    continue
   fi
 
-  cd "$COMPOSE_DIR"
-
-  if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
-    echo "Error: no docker-compose.yml or compose.yml in $COMPOSE_DIR"
-    exit 1
+  if [ ! -f "$dir/docker-compose.yml" ] && [ ! -f "$dir/compose.yml" ]; then
+    echo "❌ no compose file in $dir"
+    continue
   fi
-fi
+
+  VALID_COMPOSE_DIRS+=("$dir")
+done
 
 # 获取跟路径
 HOME_DIR="${HOME:-/root}"
@@ -55,7 +57,7 @@ log() {
   echo "$msg" | tee -a "$LOG"
 }
 
-# 设置 crontab 任务 ：每月1号和15号 执行脚本
+# 设置 crontab 任务
 set_cronjob() {
   _CRONTAB="crontab"
 
@@ -71,8 +73,8 @@ set_cronjob() {
   new_cron="$(echo "$current_cron" | grep -vF "$RUNNER")"
 
   # 添加最新的 cron
-  if [ -n "$COMPOSE_DIR" ]; then
-    CRON_CMD="bash $RUNNER $COMPOSE_DIR"
+  if [ "${#COMPOSE_DIRS[@]}" -gt 0 ]; then
+    CRON_CMD="bash $RUNNER ${COMPOSE_DIRS[*]}"
   else
     CRON_CMD="bash $RUNNER"
   fi
@@ -94,22 +96,24 @@ generate_update() {
 # 任一命令失败立即退出 使用未定义变量时报错 管道中任一失败即失败
 set -euo pipefail
 
-COMPOSE_DIR="${1:-}"
+COMPOSE_DIRS=("$@")
 
-# 存在目录参数，才校验
-if [ -n "$COMPOSE_DIR" ]; then
-  if [ ! -d "$COMPOSE_DIR" ]; then
-    echo "Error: directory not found: $COMPOSE_DIR"
-    exit 1
+# 有效compose目录
+VALID_COMPOSE_DIRS=()
+# 校验compose目录
+for dir in "${COMPOSE_DIRS[@]}"; do
+  if [ ! -d "$dir" ]; then
+    echo "❌ directory not found: $dir"
+    continue
   fi
 
-  cd "$COMPOSE_DIR"
-
-  if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
-    echo "Error: no docker-compose.yml or compose.yml in $COMPOSE_DIR"
-    exit 1
+  if [ ! -f "$dir/docker-compose.yml" ] && [ ! -f "$dir/compose.yml" ]; then
+    echo "❌ no compose file in $dir"
+    continue
   fi
-fi
+
+  VALID_COMPOSE_DIRS+=("$dir")
+done
 
 GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh"
 GITEE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_compose_auto_update.sh"
@@ -145,16 +149,33 @@ fi
 
 echo "🚀 执行更新脚本：$UPDATE_URL"
 
-if [ -n "$COMPOSE_DIR" ]; then
-  bash <(curl -sSL "$UPDATE_URL") "$COMPOSE_DIR" || {
-    echo "❌ 执行更新脚本失败"
+CURL_OPTS=(
+  # 静默执行，不展示下载进度条
+  --silent
+  # 有错误提示
+  --show-error
+  # 自动跟随 HTTP 重定向（3xx）
+  --location
+  # 最多等待 3 秒建立 TCP 连接
+  --connect-timeout 3
+  # 整个 curl 命令最大执行时间 = 10 秒
+  --max-time 10
+  # 失败后自动重试 2 次
+  --retry 2
+  # 每次重试前等待 1 秒
+  --retry-delay 1
+)
+
+if [ "${#VALID_COMPOSE_DIRS[@]}" -gt 0 ]; then
+  if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL") "${VALID_COMPOSE_DIRS[@]}"; then
+    echo "❌ 更新脚本执行失败（网络或脚本错误）"
     exit 1
-  }
+  fi
 else
-  bash <(curl -sSL "$UPDATE_URL") || {
-    echo "❌ 执行更新脚本失败"
+  if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL"); then
+    echo "❌ 更新脚本执行失败（网络或脚本错误）"
     exit 1
-  }
+  fi
 fi
 EOF
 
@@ -164,10 +185,20 @@ EOF
 
 # compose更新
 docker_compose_update() {
-  log "===== 开始更新 compose 项目: $COMPOSE_DIR ====="
+  local dir="$1"
+  log "===== 开始更新 compose 项目: $dir ====="
+  cd "$dir" || {
+    log "❌ 无法进入目录: $dir"
+    return
+  }
 
   # 读取 compose.yml 中的 services
-  SERVICES=$(docker compose config --services)
+  SERVICES=$(docker compose config --services 2>/dev/null || true)
+
+  [ -z "$SERVICES" ] && {
+    log "⚠️ 未解析到任何 services，跳过: $dir"
+    return
+  }
 
   # 严格找出“已运行”的 services（取交集）
   RUNNING_SERVICES=()
@@ -199,7 +230,7 @@ docker_compose_update() {
   # 清理无用镜像
   docker image prune -f >/dev/null 2>&1 || true
 
-  log "===== 更新完成: $COMPOSE_DIR ====="
+  log "===== 更新完成: $dir ====="
 }
 
 # docker 野生容器更新
@@ -245,10 +276,12 @@ update_docker_run_containers() {
 generate_update
 set_cronjob
 
-if [ -n "$COMPOSE_DIR" ]; then
-  docker_compose_update
+if [ "${#VALID_COMPOSE_DIRS[@]}" -gt 0 ]; then
+  for dir in "${VALID_COMPOSE_DIRS[@]}"; do
+    docker_compose_update "$dir"
+  done
 else
-  log "ℹ️ 未指定 COMPOSE_DIR，仅更新 docker run 野生容器"
+  log "ℹ️ 未发现有效 compose 目录，跳过 compose 更新"
 fi
 
 update_docker_run_containers
