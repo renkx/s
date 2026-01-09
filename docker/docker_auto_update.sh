@@ -296,12 +296,14 @@ update_docker_run_containers() {
       docker inspect "$cid" \
         --format '{{ range $k, $v := .Config.Labels }}{{ $k }}={{ $v }}{{ "\n" }}{{ end }}' |
       grep '^auto.update' |
-      sed 's/^/--label /' |
+      sed "s/'/'\\\\''/g" | \
+      sed "s|^|--label '|; s|$|'|" |
       tr '\n' ' '
     )
-
+    # 防止以后 auto.update.run 里再带 label 自身，越更新越长
+    run_cmd="$(echo "$run_cmd" | sed -E "s/--label[[:space:]]+'?auto.update[^']*'?[[:space:]]*//g")"
     # 把 label 注入到 docker run（只替换第一次出现的 docker run）
-    new_run_cmd="$(echo "$run_cmd" | sed "s|docker run |docker run $labels|")"
+    new_run_cmd="$(echo "$run_cmd" | sed "0,/docker run /s//docker run $labels/")"
 
     log "🔁 重建命令:"
     log "$new_run_cmd"
@@ -330,7 +332,7 @@ update_docker_run_containers() {
 cleanup_images() {
   log "🧹 清理未使用的 Docker 镜像"
 
-  docker image prune -af >> "$LOG" 2>&1 || {
+  docker image prune -f >> "$LOG" 2>&1 || {
     log "⚠️ 镜像清理失败（忽略）"
     return 0
   }
