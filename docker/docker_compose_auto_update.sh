@@ -85,32 +85,69 @@ set_cronjob() {
 
 # 生成本地可执行脚本
 generate_update() {
-  cat > "$RUNNER" <<EOF
+  cat > "$RUNNER" <<'EOF'
 #!/usr/bin/env bash
+# 任一命令失败立即退出 使用未定义变量时报错 管道中任一失败即失败
+set -euo pipefail
 
 # 接收路径参数
-COMPOSE_DIR="\$1"
+COMPOSE_DIR="$1"
 
-if [ ! -d "\$COMPOSE_DIR" ]; then
-  echo "Error: directory not found: \$COMPOSE_DIR"
+if [ -z "$COMPOSE_DIR" ]; then
+  echo "Usage: $0 <compose_dir>"
   exit 1
 fi
 
-cd "\$COMPOSE_DIR"
+if [ ! -d "$COMPOSE_DIR" ]; then
+  echo "Error: directory not found: $COMPOSE_DIR"
+  exit 1
+fi
+
+cd "$COMPOSE_DIR"
 
 if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
-  echo "Error: no docker-compose.yml or compose.yml in \$COMPOSE_DIR"
+  echo "Error: no docker-compose.yml or compose.yml in $COMPOSE_DIR"
   exit 1
 fi
 
-# 检测能否访问 GitHub
-if curl -s --connect-timeout 3 https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh -o /dev/null; then
-    echo "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh) "\$COMPOSE_DIR"
+GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh"
+GITEE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_compose_auto_update.sh"
+
+# -----------------------------
+# 工业级测速函数
+# -----------------------------
+test_speed() {
+  curl -sL \
+    --connect-timeout 3 \
+    --max-time 5 \
+    -w "%{time_total}" \
+    -o /dev/null \
+    "$1" || echo 999
+}
+
+echo "⏱ 正在检测 GitHub 网络质量 ..."
+
+github_time="$(test_speed "$GITHUB_URL")"
+
+# 判定阈值（秒）
+# 国内 GitHub 常见：2~5s
+# 国外 / 代理：< 0.5s
+THRESHOLD=1.5
+
+if awk "BEGIN {exit !($github_time < $THRESHOLD)}"; then
+  echo "✅ GitHub 网络良好（${github_time}s < ${THRESHOLD}s），使用 GitHub"
+  UPDATE_URL="$GITHUB_URL"
 else
-    echo "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker/docker_compose_auto_update.sh) "\$COMPOSE_DIR"
+  echo "⚠️ GitHub 网络较慢（${github_time}s ≥ ${THRESHOLD}s），切换 Gitee"
+  UPDATE_URL="$GITEE_URL"
 fi
+
+echo "🚀 执行更新脚本：$UPDATE_URL"
+
+bash <(curl -sSL "$UPDATE_URL") "$COMPOSE_DIR" || {
+  echo "❌ 执行更新脚本失败"
+  exit 1
+}
 EOF
 
   chmod +x "$RUNNER"
