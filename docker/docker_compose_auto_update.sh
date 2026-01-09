@@ -78,6 +78,8 @@ set_cronjob() {
   fi
   new_cron="$new_cron
 */5 * * * * $CRON_CMD > /dev/null 2>&1"
+  # 删除“开头连续的空行，直到遇到第一个非空行”
+  new_cron="$(echo "$new_cron" | sed '/./,$!d')"
 
   # 安装新的 crontab
   echo "$new_cron" | $_CRONTAB -
