@@ -291,12 +291,23 @@ update_docker_run_containers() {
       continue
     fi
 
+    # 取旧容器的 auto.update 相关 label
+    labels=$(docker inspect "$cid" \
+      --format '{{ range $k, $v := .Config.Labels }}{{ if hasPrefix $k "auto.update" }}--label {{ $k }}={{ $v }} {{ end }}{{ end }}')
+
+    # 把 label 注入到 docker run（只替换第一次出现的 docker run）
+    new_run_cmd="$(echo "$run_cmd" | sed "s|docker run |docker run $labels|")"
+
+    log "🔁 重建命令:"
+    log "$new_run_cmd"
+
     log "♻️ 更新 $name"
     docker rm -f "$name" >> "$LOG" 2>&1 || {
       log "❌ 删除失败，跳过: $name"
       continue
     }
-    bash -c "$run_cmd" >> "$LOG" 2>&1 || {
+
+    bash -c "$new_run_cmd" >> "$LOG" 2>&1 || {
       log "❌ 重建失败: $name"
       continue
     }
