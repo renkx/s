@@ -166,6 +166,9 @@ CURL_OPTS=(
   --retry-delay 1
 )
 
+# 处理成字符串
+CURL_OPTS_STR="${CURL_OPTS[*]}"
+
 if [ "${#VALID_COMPOSE_DIRS[@]}" -gt 0 ]; then
   CMD="bash <(curl $CURL_OPTS_STR $UPDATE_URL) ${VALID_COMPOSE_DIRS[*]}"
   if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL") "${VALID_COMPOSE_DIRS[@]}"; then
