@@ -20,9 +20,9 @@ yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL http
 yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/myzsh.sh)
 ```
 
-##### install_docker_frp.sh
+##### install_docker_frps.sh
 ```shell
-wget -N --no-check-certificate -q -O install_docker_frp.sh "https://raw.githubusercontent.com/renkx/s/main/install_docker_frp.sh" && chmod +x install_docker_frp.sh && bash install_docker_frp.sh
+wget -N --no-check-certificate -q -O install_docker_frps.sh "https://raw.githubusercontent.com/renkx/s/main/frp/install_docker_frps.sh" && chmod +x install_docker_frps.sh && bash install_docker_frps.sh /root/ag/conf/default/frps.toml
 ```
 
 ##### MoeClub.org
