@@ -41,7 +41,7 @@ modinfo tcp_bbr
 curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 
 ## 独有的.env配置，创建软连接
-ln -sf ~/ag/conf/default/docker.env ~/ag/.env
+[ -f ~/ag/conf/default/docker.env ] && ln -sf ~/ag/conf/default/docker.env ~/ag/.env
 ## iptables转发配置，创建软连接
 ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 
