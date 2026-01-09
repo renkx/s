@@ -77,7 +77,7 @@ set_cronjob() {
     CRON_CMD="bash $RUNNER"
   fi
   new_cron="$new_cron
-  */5 * * * * $CRON_CMD > /dev/null 2>&1"
+*/5 * * * * $CRON_CMD > /dev/null 2>&1"
 
   # 安装新的 crontab
   echo "$new_cron" | $_CRONTAB -
@@ -214,6 +214,11 @@ update_docker_run_containers() {
       continue
     fi
 
+    if ! [[ "$run_cmd" =~ ^docker[[:space:]]+run[[:space:]] ]]; then
+      log "❌ 非法 run 命令，拒绝执行: $name"
+      continue
+    fi
+
     log "🔍 检查镜像: $image ($name)"
     docker pull "$image" >> "$LOG" 2>&1
 
@@ -227,10 +232,12 @@ update_docker_run_containers() {
 
     log "♻️ 更新 $name"
     docker rm -f "$name" >> "$LOG" 2>&1
-    eval "$run_cmd" >> "$LOG" 2>&1
+    bash -c "$run_cmd" >> "$LOG" 2>&1
 
     log "✅ $name 更新完成"
   done
+
+  log "===== docker run 野生容器 更新完成 ====="
 }
 
 generate_update
@@ -238,6 +245,8 @@ set_cronjob
 
 if [ -n "$COMPOSE_DIR" ]; then
   docker_compose_update
+else
+  log "ℹ️ 未指定 COMPOSE_DIR，仅更新 docker run 野生容器"
 fi
 
 update_docker_run_containers
