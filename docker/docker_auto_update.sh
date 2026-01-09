@@ -238,7 +238,7 @@ docker_compose_update() {
   docker compose up -d "${RUNNING_SERVICES[@]}" >> "$LOG" 2>&1
 
   # 清理无用镜像
-  docker image prune -f >/dev/null 2>&1 || true
+  cleanup_images
 
   log "===== 更新完成: $dir ====="
 }
@@ -304,7 +304,22 @@ update_docker_run_containers() {
     log "✅ $name 更新完成"
   done
 
+  # 清理无用镜像
+  cleanup_images
+
   log "===== docker run 野生容器 更新完成 ====="
+}
+
+# 清理容器
+cleanup_images() {
+  log "🧹 清理未使用的 Docker 镜像"
+
+  docker image prune -af >> "$LOG" 2>&1 || {
+    log "⚠️ 镜像清理失败（忽略）"
+    return 0
+  }
+
+  log "✅ 镜像清理完成"
 }
 
 generate_update
