@@ -90,13 +90,13 @@ curl -O https://cnb.cool/bin456789/reinstall/-/git/raw/main/reinstall.sh || wget
 ```shell
 # github 脚本下载
 curl -O https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh || wget -O ${_##*/} $_ && bash InstallNET.sh -debian 13 -pwd '88889999' -port 12722
-# github 脚本下载 中国科学技术大学（中科大）镜像
-curl -O https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh || wget -O ${_##*/} $_ && bash InstallNET.sh -debian 13 -pwd '88889999' -port 12722 -mirror "http://mirrors.ustc.edu.cn/debian"
+# github 脚本下载 清华大学开源软件镜像
+curl -O https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh || wget -O ${_##*/} $_ && bash InstallNET.sh -debian 13 -pwd '88889999' -port 12722 -mirror "http://mirrors.tuna.tsinghua.edu.cn/debian"
 
 # gitee 脚本下载
 curl -O https://gitee.com/mb9e8j2/Tools/raw/master/Linux_reinstall/InstallNET.sh || wget -O ${_##*/} $_ && bash InstallNET.sh -debian 13 -pwd '88889999' -port 12722
-# gitee 脚本下载 中国科学技术大学（中科大）镜像
-curl -O https://gitee.com/mb9e8j2/Tools/raw/master/Linux_reinstall/InstallNET.sh || wget -O ${_##*/} $_ && bash InstallNET.sh -debian 13 -pwd '88889999' -port 12722 -mirror "http://mirrors.ustc.edu.cn/debian"
+# gitee 脚本下载 清华大学开源软件镜像
+curl -O https://gitee.com/mb9e8j2/Tools/raw/master/Linux_reinstall/InstallNET.sh || wget -O ${_##*/} $_ && bash InstallNET.sh -debian 13 -pwd '88889999' -port 12722 -mirror "http://mirrors.tuna.tsinghua.edu.cn/debian"
 
 ## 当前不能DD的：搬瓦工（有几率无线重启）、aws（重启就断连）
 ```
