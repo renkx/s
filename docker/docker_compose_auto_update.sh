@@ -247,7 +247,22 @@ docker_compose_update() {
 update_docker_run_containers() {
   log "===== 开始检查 docker run 野生容器 ====="
 
-  docker ps --filter "label=auto.update=true" --format '{{.ID}}' | while read -r cid; do
+  # 先获取符合条件的容器 ID
+  mapfile -t CONTAINERS < <(
+    docker ps \
+      --filter "label=auto.update=true" \
+      --format '{{.ID}}'
+  )
+
+  # 一个都没有，直接返回
+  if [ "${#CONTAINERS[@]}" -eq 0 ]; then
+    log "ℹ️ 未发现带 auto.update=true 标签的 docker run 野生容器，跳过"
+    return
+  fi
+
+  log "发现 ${#CONTAINERS[@]} 个可自动更新的 docker run 容器"
+
+  for cid in "${CONTAINERS[@]}"; do
     name=$(docker inspect -f '{{.Name}}' "$cid" | sed 's#^/##')
     image=$(docker inspect -f '{{ index .Config.Labels "auto.update.image" }}' "$cid")
     run_cmd=$(docker inspect -f '{{ index .Config.Labels "auto.update.run" }}' "$cid")
@@ -263,7 +278,10 @@ update_docker_run_containers() {
     fi
 
     log "🔍 检查镜像: $image ($name)"
-    docker pull "$image" >> "$LOG" 2>&1
+    docker pull "$image" >> "$LOG" 2>&1 || {
+      log "⚠️ 镜像拉取失败，跳过: $name"
+      continue
+    }
 
     old_id=$(docker inspect -f '{{.Image}}' "$cid")
     new_id=$(docker image inspect "$image" -f '{{.Id}}')
@@ -274,8 +292,14 @@ update_docker_run_containers() {
     fi
 
     log "♻️ 更新 $name"
-    docker rm -f "$name" >> "$LOG" 2>&1
-    bash -c "$run_cmd" >> "$LOG" 2>&1
+    docker rm -f "$name" >> "$LOG" 2>&1 || {
+      log "❌ 删除失败，跳过: $name"
+      continue
+    }
+    bash -c "$run_cmd" >> "$LOG" 2>&1 || {
+      log "❌ 重建失败: $name"
+      continue
+    }
 
     log "✅ $name 更新完成"
   done
