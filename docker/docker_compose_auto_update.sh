@@ -96,6 +96,8 @@ if [ ! -d "\$COMPOSE_DIR" ]; then
   exit 1
 fi
 
+cd "\$COMPOSE_DIR"
+
 if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
   echo "Error: no docker-compose.yml or compose.yml in \$COMPOSE_DIR"
   exit 1
