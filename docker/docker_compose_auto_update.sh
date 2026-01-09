@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+set -u
+set -o pipefail
 
 COMPOSE_DIRS=("$@")
 
@@ -93,8 +94,8 @@ set_cronjob() {
 generate_update() {
   cat > "$RUNNER" <<'EOF'
 #!/usr/bin/env bash
-# 任一命令失败立即退出 使用未定义变量时报错 管道中任一失败即失败
-set -euo pipefail
+set -u
+set -o pipefail
 
 COMPOSE_DIRS=("$@")
 
