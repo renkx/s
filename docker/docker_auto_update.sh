@@ -24,10 +24,10 @@ done
 # 获取跟路径
 HOME_DIR="${HOME:-/root}"
 # 最后生成的本地脚本文件
-RUNNER="$HOME_DIR/docker_compose_auto_update.sh"
+RUNNER="$HOME_DIR/docker_auto_update.sh"
 
-LOG="/var/log/docker_compose_auto_update.log"
-LOGROTATE_CONF="/etc/logrotate.d/docker_compose_auto_update"
+LOG="/var/log/docker_auto_update.log"
+LOGROTATE_CONF="/etc/logrotate.d/docker_auto_update"
 
 # ===== 自动创建 logrotate 配置（只在不存在时） =====
 if [ ! -f "$LOGROTATE_CONF" ]; then
@@ -116,8 +116,8 @@ for dir in "${COMPOSE_DIRS[@]}"; do
   VALID_COMPOSE_DIRS+=("$dir")
 done
 
-GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh"
-GITEE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_compose_auto_update.sh"
+GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh"
+GITEE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh"
 
 # -----------------------------
 # 工业级测速函数
