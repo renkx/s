@@ -292,8 +292,13 @@ update_docker_run_containers() {
     fi
 
     # 取旧容器的 auto.update 相关 label
-    labels=$(docker inspect "$cid" \
-      --format '{{ range $k, $v := .Config.Labels }}{{ if hasPrefix $k "auto.update" }}--label {{ $k }}={{ $v }} {{ end }}{{ end }}')
+    labels=$(
+      docker inspect "$cid" \
+        --format '{{ range $k, $v := .Config.Labels }}{{ $k }}={{ $v }}{{ "\n" }}{{ end }}' |
+      grep '^auto.update' |
+      sed 's/^/--label /' |
+      tr '\n' ' '
+    )
 
     # 把 label 注入到 docker run（只替换第一次出现的 docker run）
     new_run_cmd="$(echo "$run_cmd" | sed "s|docker run |docker run $labels|")"
