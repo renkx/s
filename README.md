@@ -14,6 +14,8 @@ bash <(curl -L -s check.unlock.media) -P http://127.0.0.1:10801
 bash <(curl -L -s media.ispvps.com)
 bash <(curl -L -s media.ispvps.com) -P http://127.0.0.1:10801
 bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/check.sh)
+## IP质量体检脚本
+bash <(curl -sL IP.Check.Place)
 ## VPS融合怪服务器测评脚本
 bash <(wget -qO- bash.spiritlhl.net/ecs)
 ## 检测ChatGPT是否可用
