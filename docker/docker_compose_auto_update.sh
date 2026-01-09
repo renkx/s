@@ -167,13 +167,19 @@ CURL_OPTS=(
 )
 
 if [ "${#VALID_COMPOSE_DIRS[@]}" -gt 0 ]; then
+  CMD="bash <(curl $CURL_OPTS_STR $UPDATE_URL) ${VALID_COMPOSE_DIRS[*]}"
   if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL") "${VALID_COMPOSE_DIRS[@]}"; then
-    echo "❌ 更新脚本执行失败（网络或脚本错误）"
+    echo "❌ 更新脚本执行失败"
+    echo "👉 执行命令:"
+    echo "$CMD"
     exit 1
   fi
 else
+  CMD="bash <(curl $CURL_OPTS_STR $UPDATE_URL)"
   if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL"); then
-    echo "❌ 更新脚本执行失败（网络或脚本错误）"
+    echo "❌ 更新脚本执行失败"
+    echo "👉 执行命令:"
+    echo "$CMD"
     exit 1
   fi
 fi
