@@ -1,24 +1,21 @@
 #!/bin/bash
 set -e
 
-# ===== 参数校验 =====
-if [ $# -ne 1 ]; then
-  echo "Usage: $0 <compose_dir>"
-  exit 1
-fi
+COMPOSE_DIR="${1:-}"
 
-COMPOSE_DIR="$1"
+# 存在目录参数，才校验
+if [ -n "$COMPOSE_DIR" ]; then
+  if [ ! -d "$COMPOSE_DIR" ]; then
+    echo "Error: directory not found: $COMPOSE_DIR"
+    exit 1
+  fi
 
-if [ ! -d "$COMPOSE_DIR" ]; then
-  echo "Error: directory not found: $COMPOSE_DIR"
-  exit 1
-fi
+  cd "$COMPOSE_DIR"
 
-cd "$COMPOSE_DIR"
-
-if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
-  echo "Error: no docker-compose.yml or compose.yml in $COMPOSE_DIR"
-  exit 1
+  if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
+    echo "Error: no docker-compose.yml or compose.yml in $COMPOSE_DIR"
+    exit 1
+  fi
 fi
 
 # 获取跟路径
@@ -74,8 +71,13 @@ set_cronjob() {
   new_cron="$(echo "$current_cron" | grep -vF "$RUNNER")"
 
   # 添加最新的 cron
+  if [ -n "$COMPOSE_DIR" ]; then
+    CRON_CMD="bash $RUNNER $COMPOSE_DIR"
+  else
+    CRON_CMD="bash $RUNNER"
+  fi
   new_cron="$new_cron
-*/5 * * * * bash $RUNNER $COMPOSE_DIR > /dev/null 2>&1"
+  */5 * * * * $CRON_CMD > /dev/null 2>&1"
 
   # 安装新的 crontab
   echo "$new_cron" | $_CRONTAB -
@@ -90,24 +92,21 @@ generate_update() {
 # 任一命令失败立即退出 使用未定义变量时报错 管道中任一失败即失败
 set -euo pipefail
 
-# 接收路径参数
-COMPOSE_DIR="$1"
+COMPOSE_DIR="${1:-}"
 
-if [ -z "$COMPOSE_DIR" ]; then
-  echo "Usage: $0 <compose_dir>"
-  exit 1
-fi
+# 存在目录参数，才校验
+if [ -n "$COMPOSE_DIR" ]; then
+  if [ ! -d "$COMPOSE_DIR" ]; then
+    echo "Error: directory not found: $COMPOSE_DIR"
+    exit 1
+  fi
 
-if [ ! -d "$COMPOSE_DIR" ]; then
-  echo "Error: directory not found: $COMPOSE_DIR"
-  exit 1
-fi
+  cd "$COMPOSE_DIR"
 
-cd "$COMPOSE_DIR"
-
-if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
-  echo "Error: no docker-compose.yml or compose.yml in $COMPOSE_DIR"
-  exit 1
+  if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
+    echo "Error: no docker-compose.yml or compose.yml in $COMPOSE_DIR"
+    exit 1
+  fi
 fi
 
 GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh"
@@ -144,10 +143,17 @@ fi
 
 echo "🚀 执行更新脚本：$UPDATE_URL"
 
-bash <(curl -sSL "$UPDATE_URL") "$COMPOSE_DIR" || {
-  echo "❌ 执行更新脚本失败"
-  exit 1
-}
+if [ -n "$COMPOSE_DIR" ]; then
+  bash <(curl -sSL "$UPDATE_URL") "$COMPOSE_DIR" || {
+    echo "❌ 执行更新脚本失败"
+    exit 1
+  }
+else
+  bash <(curl -sSL "$UPDATE_URL") || {
+    echo "❌ 执行更新脚本失败"
+    exit 1
+  }
+fi
 EOF
 
   chmod +x "$RUNNER"
@@ -194,6 +200,44 @@ docker_compose_update() {
   log "===== 更新完成: $COMPOSE_DIR ====="
 }
 
+# docker 野生容器更新
+update_docker_run_containers() {
+  log "===== 开始检查 docker run 野生容器 ====="
+
+  docker ps --filter "label=auto.update=true" --format '{{.ID}}' | while read -r cid; do
+    name=$(docker inspect -f '{{.Name}}' "$cid" | sed 's#^/##')
+    image=$(docker inspect -f '{{ index .Config.Labels "auto.update.image" }}' "$cid")
+    run_cmd=$(docker inspect -f '{{ index .Config.Labels "auto.update.run" }}' "$cid")
+
+    if [ -z "$image" ] || [ -z "$run_cmd" ]; then
+      log "⚠️ 跳过 $name（缺少 image 或 run 命令）"
+      continue
+    fi
+
+    log "🔍 检查镜像: $image ($name)"
+    docker pull "$image" >> "$LOG" 2>&1
+
+    old_id=$(docker inspect -f '{{.Image}}' "$cid")
+    new_id=$(docker image inspect "$image" -f '{{.Id}}')
+
+    if [ "$old_id" = "$new_id" ]; then
+      log "✅ $name 镜像未变化，跳过"
+      continue
+    fi
+
+    log "♻️ 更新 $name"
+    docker rm -f "$name" >> "$LOG" 2>&1
+    eval "$run_cmd" >> "$LOG" 2>&1
+
+    log "✅ $name 更新完成"
+  done
+}
+
 generate_update
 set_cronjob
-docker_compose_update
+
+if [ -n "$COMPOSE_DIR" ]; then
+  docker_compose_update
+fi
+
+update_docker_run_containers
