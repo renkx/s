@@ -303,7 +303,7 @@ update_docker_run_containers() {
     # 防止以后 auto.update.run 里再带 label 自身，越更新越长
     run_cmd="$(echo "$run_cmd" | sed -E "s/--label[[:space:]]+'?auto.update[^']*'?[[:space:]]*//g")"
     # 把 label 注入到 docker run（只替换第一次出现的 docker run）
-    new_run_cmd="$(echo "$run_cmd" | sed "0,/docker run /s//docker run $labels/")"
+    new_run_cmd="${run_cmd/docker run /docker run $labels}"
 
     log "🔁 重建命令:"
     log "$new_run_cmd"
