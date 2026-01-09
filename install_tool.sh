@@ -904,16 +904,16 @@ install_acme() {
   fi
 }
 
-# 安装docker_compose自动更新
-install_docker_compose_auto_update() {
+# 安装docker容器自动更新
+install_docker_auto_update() {
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
-    echo_info "bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh) ~/ag"
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_compose_auto_update.sh) ~/ag
+    echo_info "bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh) ~/ag"
+    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh) ~/ag
   else
     echo_info "执行【gitee】的脚本 ..."
-    echo_info "bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker/docker_compose_auto_update.sh) ~/ag"
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker/docker_compose_auto_update.sh) ~/ag
+    echo_info "bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh) ~/ag"
+    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh) ~/ag
   fi
 }
 
@@ -932,7 +932,7 @@ menu() {
     echo -e "${Green}8.${Font} 卸载 qemu-guest-agent"
     echo -e "${Green}9.${Font} 虚拟内存设置"
     echo -e "${Green}10.${Font} 安装acme命令动态配置域名证书"
-    echo -e "${Green}11.${Font} 安装docker_compose自动更新"
+    echo -e "${Green}11.${Font} 安装docker容器自动更新"
     echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7、8"
     echo -e "${Green}87.${Font} 安装 XANMOD 官方内核"
     echo -e "${Green}88.${Font} 安装 XANMOD 官方内核并删除旧内核"
@@ -995,7 +995,7 @@ menu() {
         menu
         ;;
     11)
-        install_docker_compose_auto_update
+        install_docker_auto_update
         menu
         ;;
     33)
