@@ -365,30 +365,6 @@ update_swap() {
   fi
 }
 
-# 安装 ag
-install_ag()
-{
-  if [ ! -d ~/ag/ ]; then
-    mkdir -p ~/ag/
-    judge "创建目录 (mkdir -p ~/ag/)"
-
-    if [[ "$IsGlobal" == "1" ]];then
-      echo_info "git拉取【github】ag ..."
-      git clone https://github.com/renkx/ag.git ~/ag/
-    else
-      echo_info "git拉取【gitee】ag ..."
-      git clone https://gitee.com/renkx/ag.git ~/ag/
-    fi
-    judge "安装 ag"
-    ln -sf ~/ag/default.env ~/ag/.env
-    judge "创建软链接 (ln -sf ~/ag/default.env ~/ag/.env) "
-    if [ ! -d ~/ag/conf/default/ ]; then
-        mkdir -p ~/ag/conf/default/
-        judge "创建目录 (mkdir -p ~/ag/conf/default/)"
-    fi
-  fi
-}
-
 # 更新 nameserver
 update_nameserver()
 {
@@ -926,17 +902,17 @@ menu() {
     echo -e "${Green}2.${Font} 安装 系统基础"
     echo -e "${Green}3.${Font} 安装 docker"
     echo -e "${Green}4.${Font} 安装 on-my-zsh"
-    echo -e "${Green}5.${Font} 安装 ag"
-    echo -e "${Green}6.${Font} 更新 motd"
-    echo -e "${Green}7.${Font} 更新 nameserver"
-    echo -e "${Green}8.${Font} 卸载 qemu-guest-agent"
-    echo -e "${Green}9.${Font} 虚拟内存设置"
-    echo -e "${Green}10.${Font} 安装acme命令动态配置域名证书"
-    echo -e "${Green}11.${Font} 安装docker容器自动更新"
-    echo -e "${Green}33.${Font} 一键 1、2、3、4、5、6、7、8"
-    echo -e "${Green}87.${Font} 安装 XANMOD 官方内核"
-    echo -e "${Green}88.${Font} 安装 XANMOD 官方内核并删除旧内核"
-    echo -e "${Green}89.${Font} 删除保留指定内核"
+    echo -e "${Green}5.${Font} 更新 motd"
+    echo -e "${Green}6.${Font} 更新 nameserver"
+    echo -e "${Green}7.${Font} 卸载 qemu-guest-agent"
+    echo -e "${Green}8.${Font} 虚拟内存设置"
+    echo -e "${Green}9.${Font} 安装acme命令动态配置域名证书"
+    echo -e "${Green}10.${Font} 安装docker容器自动更新"
+
+    echo -e "${Green}333.${Font} 一键 1、2、3、4、5、6、7"
+    echo -e "${Green}987.${Font} 安装 XANMOD 官方内核"
+    echo -e "${Green}888.${Font} 安装 XANMOD 官方内核并删除旧内核"
+    echo -e "${Green}889.${Font} 删除保留指定内核"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
@@ -971,53 +947,48 @@ menu() {
         menu
         ;;
     5)
-        install_ag
-        menu
-        ;;
-    6)
         update_motd
         menu
         ;;
-    7)
+    6)
         update_nameserver
         menu
         ;;
-    8)
+    7)
         apt -y autoremove --purge qemu-guest-agent
         menu
         ;;
-    9)
+    8)
         update_swap
         menu
         ;;
-    10)
+    9)
         install_acme
         menu
         ;;
-    11)
+    10)
         install_docker_auto_update
         menu
         ;;
-    33)
+    333)
         optimizing_system
         install_base
         install_docker
         install_on_my_zsh
-        install_ag
         update_motd
         update_nameserver
         apt -y autoremove --purge qemu-guest-agent
         menu
         ;;
-    87)
+    887)
         check_sys_official_xanmod
         menu
         ;;
-    88)
+    888)
         check_sys_official_xanmod_and_detele_kernel
         menu
         ;;
-    89)
+    889)
         detele_kernel_custom
         menu
         ;;
