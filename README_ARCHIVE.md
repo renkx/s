@@ -109,5 +109,5 @@ apt-get autoremove
 ```shell
 ~/.acme.sh/acme.sh --list
 # 删除某个域名证书
-~/.acme.sh/acme.sh --remove --domain sp.20300808.xyz --ecc
+~/.acme.sh/acme.sh --remove --ecc --domain sp.20300808.xyz
 ```
