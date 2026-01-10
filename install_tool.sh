@@ -247,32 +247,77 @@ optimizing_system() {
 
 # 覆盖写入
   cat >'/etc/sysctl.d/optimizing-sysctl.conf' <<EOF
-net.ipv4.tcp_no_metrics_save=1
-net.ipv4.tcp_ecn=0
-net.ipv4.tcp_frto=0
-net.ipv4.tcp_mtu_probing=0
-net.ipv4.tcp_rfc1337=0
-net.ipv4.tcp_sack=1
-net.ipv4.tcp_fack=1
-net.ipv4.tcp_window_scaling=1
-net.ipv4.tcp_adv_win_scale=1
-net.ipv4.tcp_moderate_rcvbuf=1
-net.core.rmem_max=33554432
-net.core.wmem_max=33554432
-net.ipv4.tcp_rmem=4096 87380 33554432
-net.ipv4.tcp_wmem=4096 16384 33554432
-net.ipv4.udp_rmem_min=8192
-net.ipv4.udp_wmem_min=8192
-net.core.default_qdisc=fq
-net.ipv4.tcp_congestion_control=bbr
-# 开启内核转发
-net.ipv4.conf.all.route_localnet=1
-net.ipv4.ip_forward=1
-net.ipv4.conf.all.forwarding=1
-net.ipv4.conf.default.forwarding=1
-# Linux 连接跟踪调优
-net.netfilter.nf_conntrack_max = 2621440
-net.netfilter.nf_conntrack_tcp_timeout_established=600
+# =========================
+# TCP/IP 核心优化
+# =========================
+net.ipv4.tcp_no_metrics_save = 1       # 禁止保存 TCP RTT/带宽指标，避免旧连接影响新连接
+net.ipv4.tcp_ecn = 0                   # 禁用 ECN 拥塞标记，保证兼容性
+net.ipv4.tcp_frto = 0                   # 禁用 F-RTO，减少误触发重传
+net.ipv4.tcp_mtu_probing = 0           # 禁止 MTU 探测，避免不必要的延迟
+net.ipv4.tcp_rfc1337 = 0               # 关闭 RFC1337 保护，保持兼容性
+net.ipv4.tcp_sack = 1                   # 开启选择性确认，提高丢包恢复能力
+net.ipv4.tcp_fack = 1                   # 启用 FACK，减少网络拥塞时的重复确认
+net.ipv4.tcp_window_scaling = 1        # 开启窗口缩放，支持高带宽延迟网络
+net.ipv4.tcp_adv_win_scale = -1        # 自动调节高级窗口缩放，兼顾性能与兼容
+net.ipv4.tcp_moderate_rcvbuf = 1       # 自动调节接收缓冲，提高大流量适应性
+
+# TCP 缓冲区设置
+net.ipv4.tcp_rmem = 8192 262144 134217728   # 接收缓冲：最小8KB，默认256KB，最大128MB
+net.ipv4.tcp_wmem = 4096 16384 134217728    # 发送缓冲：最小4KB，默认16KB，最大128MB
+net.ipv4.tcp_collapse_max_bytes = 6291456   # TCP 内存合并阈值，减少内存碎片
+net.ipv4.tcp_notsent_lowat = 131072         # 未发送数据低水位阈值，控制内核发送行为
+
+# TCP 连接参数优化
+net.ipv4.tcp_fin_timeout = 15               # 减少 TIME_WAIT 堆积
+net.ipv4.tcp_keepalive_time = 600           # TCP Keepalive 空闲时间
+net.ipv4.tcp_keepalive_intvl = 3            # Keepalive 探测间隔
+net.ipv4.tcp_keepalive_probes = 5           # Keepalive 最大探测次数
+net.ipv4.tcp_retries1 = 3                   # TCP 初次重传次数
+net.ipv4.tcp_retries2 = 5                   # TCP 全重传次数
+net.ipv4.tcp_slow_start_after_idle = 0      # 空闲后不触发慢启动，保持速度
+net.ipv4.tcp_timestamps = 1                 # 开启时间戳，防止序列号回绕
+net.ipv4.tcp_syncookies = 1                 # 开启 SYN Cookies，防止 SYN 洪泛攻击
+net.ipv4.tcp_syn_retries = 3                # SYN 重试次数
+net.ipv4.tcp_synack_retries = 3             # SYN-ACK 重试次数
+net.ipv4.tcp_max_syn_backlog = 32768        # SYN 队列长度，支持高并发连接
+net.ipv4.tcp_max_tw_buckets = 65536        # TIME_WAIT 最大数量
+net.ipv4.tcp_abort_on_overflow = 1          # 队列溢出直接拒绝新连接，防止内存崩溃
+
+# =========================
+# 内核转发 / 路由 / NAT
+# =========================
+net.ipv4.ip_forward = 1                     # 开启 IP 转发，允许路由
+net.ipv4.conf.all.forwarding = 1
+net.ipv4.conf.default.forwarding = 1
+net.ipv4.conf.all.route_localnet = 1        # 允许本地路由到 127.0.0.0/8，用于 NAT/代理
+
+# =========================
+# UDP & 网络队列优化
+# =========================
+net.core.rmem_max = 134217728              # 接收缓冲区上限 128MB
+net.core.wmem_max = 134217728              # 发送缓冲区上限 128MB
+net.core.netdev_max_backlog = 32768        # 接收队列最大长度，提高高并发处理能力
+net.core.somaxconn = 32768                 # TCP 监听队列长度
+net.ipv4.udp_rmem_min = 8192               # UDP 最小接收缓冲
+net.ipv4.udp_wmem_min = 8192               # UDP 最小发送缓冲
+
+# 拥塞控制算法
+net.ipv4.tcp_congestion_control = bbr       # 使用 BBR 拥塞控制算法，提高吞吐和稳定性
+net.core.default_qdisc = fq                # 使用公平队列调度，避免网络抖动
+
+# =========================
+# 连接跟踪优化
+# =========================
+net.netfilter.nf_conntrack_max = 2621440           # 最大连接追踪数
+net.netfilter.nf_conntrack_tcp_timeout_established = 600  # 已建立 TCP 连接超时
+
+# =========================
+# 系统资源 / 文件句柄
+# =========================
+fs.file-max = 10485760                     # 系统最大文件句柄
+fs.nr_open = 1048576                        # 每进程最大文件数
+fs.inotify.max_user_instances = 8192       # inotify 最大实例数
+net.ipv4.ip_local_port_range = 1024 65535  # 本地端口范围
 EOF
 
   # 载入配置使其生效
@@ -288,9 +333,6 @@ EOF
   cat >'/etc/udev/rules.d/50-nf_conntrack.rules' <<EOF
 ACTION=="add", SUBSYSTEM=="module", KERNEL=="nf_conntrack", RUN+="/usr/lib/systemd/systemd-sysctl --prefix=/net/netfilter"
 EOF
-
-  #
-  echo always >/sys/kernel/mm/transparent_hugepage/enabled
 
   cat >'/etc/systemd/system.conf' <<EOF
 [Manager]
