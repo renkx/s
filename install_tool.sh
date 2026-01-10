@@ -371,7 +371,11 @@ net.ipv4.ip_local_port_range=1024 65535
 EOF
 
   # 载入配置使其生效
-  sysctl -p
+  # 老系统才有 /etc/sysctl.conf
+  if [ -f /etc/sysctl.conf ]; then
+      sysctl -p
+  fi
+  # 加载 /usr/lib/sysctl.d/* /etc/sysctl.d/* 下的自定义配置
   sysctl --system
 
   # 参考：https://www.emqx.com/zh/blog/emqx-performance-tuning-linux-conntrack-and-mqtt-connections
