@@ -677,107 +677,198 @@ update_motd() {
     cat >/etc/update-motd.d/00-header <<'EOF'
 #!/bin/sh
 
-if
-	[ -z "$DISTRIB_DESCRIPTION" ]
-	[ -x /usr/bin/lsb_release ]
-then
-	# Fall back to using the very slow lsb_release utility
-	DISTRIB_DESCRIPTION=$(lsb_release -s -d)
+# ---------- 彩色设置 ----------
+GREEN="\033[0;32m"
+CYAN="\033[0;36m"
+RESET="\033[0m"
+
+# ---------- 系统信息 ----------
+# 系统发行版描述
+if [ -z "$DISTRIB_DESCRIPTION" ] && [ -x /usr/bin/lsb_release ]; then
+    DISTRIB_DESCRIPTION=$(lsb_release -s -d)
 fi
 
-printf "Welcome to %s (%s)\n" "$DISTRIB_DESCRIPTION" "$(uname -r)"
+# 内核版本、系统名、架构
+OS_NAME=$(uname -s)
+KERNEL_VERSION=$(uname -r)
+ARCH=$(uname -m)
+
+# ---------- 输出系统信息 ----------
+printf "\n"
+printf "${GREEN}Welcome to %s${RESET}\n" "$DISTRIB_DESCRIPTION"
+printf "${CYAN}OS: %s %s (%s)${RESET}\n" "$OS_NAME" "$KERNEL_VERSION" "$ARCH"
 printf "\n"
 EOF
 
     cat >/etc/update-motd.d/10-sysinfo <<'EOF'
 #!/bin/bash
 
-date=$(date)
-load=$(cat /proc/loadavg | awk '{print $1}')
-root_usage=$(df -h / | awk '/\// {print $(NF-1)}')
-memory_usage=$(free -m | awk '/Mem:/ { total=$2; used=$3 } END { printf("%3.1f%%", used/total*100)}')
+# ===============================================================
+#                    系统状态概览 (彩色版 + 异步公网 IP)
+# ===============================================================
 
-[[ $(free -m | awk '/Swap/ {print $2}') == "0" ]] && swap_usage="0.0%" || swap_usage=$(free -m | awk '/Swap/ { printf("%3.1f%%", $3/$2*100) }')
-usersnum=$(expr $(users | wc -w) + 1)
-time=$(uptime | grep -ohe 'up .*' | sed 's/,/\ hours/g' | awk '{ printf $2" "$3 }')
-processes=$(ps aux | wc -l)
-localip=$(hostname -I | awk '{print $1}')
+# ---------- 颜色 ----------
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
+RED="\033[0;31m"
+CYAN="\033[0;36m"
+RESET="\033[0m"
 
-IPv4=$(timeout 1s dig -4 TXT +short o-o.myaddr.l.google.com @ns3.google.com | sed 's/\"//g')
-[[ "$IPv4" == "" ]] && IPv4=$(timeout 1s dig -4 TXT CH +short whoami.cloudflare @1.0.0.3 | sed 's/\"//g')
-IPv6=$(timeout 1s dig -6 TXT +short o-o.myaddr.l.google.com @ns3.google.com | sed 's/\"//g')
-[[ "$IPv6" == "" ]] && IPv6=$(timeout 1s dig -6 TXT CH +short whoami.cloudflare @2606:4700:4700::1003 | sed 's/\"//g')
-# IP_Check=$(echo $IPv4 | awk -F. '$1<255&&$2<255&&$3<255&&$4<255{print "isIPv4"}')
-IP_Check="$IPv4"
-if expr "$IP_Check" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
-	for i in 1 2 3 4; do
-		if [ $(echo "$IP_Check" | cut -d. -f$i) -gt 255 ]; then
-			echo "fail ($IP_Check)"
-			exit 1
-		fi
-	done
-	IP_Check="isIPv4"
+# ---------- 1. 系统负载 ----------
+core_count=$(nproc 2>/dev/null || echo 1)
+read load1 load5 load15 _ < /proc/loadavg
+load_percent=$(( $(awk "BEGIN{printf int(($load1/$core_count)*100)}") ))
+
+if (( load_percent > 90 )); then
+    load_color=$RED
+elif (( load_percent > 70 )); then
+    load_color=$YELLOW
+else
+    load_color=$GREEN
 fi
 
-[[ ${IPv6: -1} == ":" ]] && IPv6=$(echo "$IPv6" | sed 's/.$/0/')
-[[ ${IPv6:0:1} == ":" ]] && IPv6=$(echo "$IPv6" | sed 's/^./0/')
-IP6_Check="$IPv6"":"
-IP6_Hex_Num=$(echo "$IP6_Check" | tr -cd ":" | wc -c)
-IP6_Hex_Abbr="0"
-if [[ $(echo "$IPv6" | grep -i '[[:xdigit:]]' | grep ':') ]] && [[ "$IP6_Hex_Num" -le "8" ]]; then
-	for ((i = 1; i <= "$IP6_Hex_Num"; i++)); do
-		IP6_Hex=$(echo "$IP6_Check" | cut -d: -f$i)
-		[[ "$IP6_Hex" == "" ]] && IP6_Hex_Abbr=$(expr $IP6_Hex_Abbr + 1)
-		[[ $(echo "$IP6_Hex" | wc -c) -le "4" ]] && {
-			if [[ $(echo "$IP6_Hex" | grep -iE '[^0-9a-f]') ]] || [[ "$IP6_Hex_Abbr" -gt "1" ]]; then
-				echo "fail ($IP6_Check)"
-				exit 1
-			fi
-		}
-	done
-	IP6_Check="isIPv6"
+# ---------- 1a. 登录信息 ----------
+# 安全统计：
+# 1. 总登录记录数（用户名不去重，但只统计真正终端 pts/tty）
+# 2. 不同用户名数（去重用户名）
+# 3. 真实在线会话数（用户名 + 终端 + 远程IP，只统计真正终端 pts/tty）
+
+# 筛选真正终端的 who 输出
+who_term_filtered=$(who | awk '{
+    term=$2
+    if($2=="sshd"){ term=$3 }
+    if(term ~ /^pts/ || term ~ /^tty/) print $0
+}')
+
+total_login=$(echo "$who_term_filtered" | wc -l)
+unique_user=$(echo "$who_term_filtered" | awk '{print $1}' | sort -u | wc -l)
+session_count=$(echo "$who_term_filtered" | awk '{
+    ip="本地"
+    for(i=1;i<=NF;i++){
+        if($i ~ /^\([0-9.:]+\)$/){ ip=$i; break }
+    }
+    print $1,$2,ip
+}' | sort -u | wc -l)
+
+echo -e "==============================================================="
+echo -e "                   系统状态概览"
+echo -e "==============================================================="
+echo -e " > 系统已运行: $(uptime -p | sed 's/^up //')"
+echo -e " > 系统负载: ${load_color}${load1} ${load5} ${load15} (1/5/15 min, ${load_percent}% CPU负载)${RESET} (基于 $core_count 核心 CPU)"
+echo -e " > 登录情况: ${CYAN}${total_login}${RESET} (总登录记录数), ${CYAN}${unique_user}${RESET} (不同用户名), ${CYAN}${session_count}${RESET} (真实会话数: 用户名+终端+远程IP)"
+
+# ---------- 2. 内存使用 (含 Swap) ----------
+print_mem_usage() {
+    local total_kb avail_kb used_kb total_mb used_mb avail_mb percent color
+
+    # RAM
+    total_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    avail_kb=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+    used_kb=$((total_kb - avail_kb))
+    total_mb=$((total_kb / 1024))
+    used_mb=$((used_kb / 1024))
+    avail_mb=$((avail_kb / 1024))
+    percent=$(awk -v u="$used_kb" -v t="$total_kb" 'BEGIN{printf "%.1f", (u/t)*100}')
+    if (( $(echo "$percent>90"|bc -l) )); then color=$RED
+    elif (( $(echo "$percent>70"|bc -l) )); then color=$YELLOW
+    else color=$GREEN; fi
+    echo -e " > 内存占用: ${color}${used_mb}MB / ${total_mb}MB (${percent}% 已用, 剩余: ${avail_mb}MB)${RESET}"
+
+    # Swap
+    total_kb=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+    avail_kb=$(grep SwapFree /proc/meminfo | awk '{print $2}')
+    used_kb=$((total_kb - avail_kb))
+    total_mb=$((total_kb / 1024))
+    used_mb=$((used_kb / 1024))
+    avail_mb=$((avail_kb / 1024))
+    if [ "$total_kb" -gt 0 ]; then
+        percent=$(awk -v u="$used_kb" -v t="$total_kb" 'BEGIN{printf "%.1f", (u/t)*100}')
+        if (( $(echo "$percent>90"|bc -l) )); then color=$RED
+        elif (( $(echo "$percent>70"|bc -l) )); then color=$YELLOW
+        else color=$GREEN; fi
+        echo -e " > Swap占用: ${color}${used_mb}MB / ${total_mb}MB (${percent}% 已用, 剩余: ${avail_mb}MB)${RESET}"
+    else
+        echo -e " > Swap占用: ${CYAN}未启用${RESET}"
+    fi
+}
+
+print_mem_usage
+
+# ---------- 3. 磁盘使用 ----------
+echo -e " > 磁盘使用情况:"
+df -h --output=target,size,used,avail,pcent -x tmpfs -x devtmpfs -x overlay | tail -n +2 | while read mount size used avail pcent; do
+    pct_num=${pcent%\%}
+    if (( pct_num > 90 )); then disk_color=$RED
+    elif (( pct_num > 70 )); then disk_color=$YELLOW
+    else disk_color=$GREEN; fi
+    printf "    %s: %s / %s (%b%s)  可用: %s\n" "$mount" "$used" "$size" "$disk_color" "$pcent" "$avail"
+done
+
+# ---------- 4. 内网 IP ----------
+ip_list=$(hostname -I 2>/dev/null | awk '{
+    for(i=1;i<=NF;i++){
+        if($i ~ /^127\./) continue;
+        if($i ~ /^10\./ || $i ~ /^172\.(1[6-9]|2[0-9]|3[0-1])\./ || $i ~ /^192\.168\./) printf "%s ", $i;
+        if($i ~ /^fc00:/ || $i ~ /^fd00:/) printf "%s ", $i;
+    }
+}')
+echo -e " > 内网 IP: ${CYAN}${ip_list:-未获取到}${RESET}"
+
+# ---------- 5. 公网 IP ----------
+PUBIP_FILE="/tmp/.motd_pubip"
+PUBIP_TIME_FILE="/tmp/.motd_pubip_time"
+PUBIP_TIMESTAMP_FILE="/tmp/.motd_pubip_ts"
+
+get_pubip_from_net() {
+    local ipv4 ipv6 pubip
+    ipv4=$(curl -s -4 --connect-timeout 2 --max-time 5 http://ipv4.icanhazip.com 2>/dev/null)
+    [ -z "$ipv4" ] && ipv4=$(curl -s -4 --connect-timeout 2 --max-time 5 ip.sb 2>/dev/null)
+
+    ipv6=$(curl -s -6 --connect-timeout 2 --max-time 5 http://ipv6.icanhazip.com 2>/dev/null)
+    [ -z "$ipv6" ] && ipv6=$(curl -s -6 --connect-timeout 2 --max-time 5 ip.sb 2>/dev/null)
+
+    pubip=""
+    [ -n "$ipv4" ] && pubip="$ipv4"
+    [ -n "$ipv6" ] && pubip="$pubip $ipv6"
+    [ -z "$pubip" ] && pubip="未获取到"
+    echo "$pubip"
+}
+
+fetch_pubip() {
+    get_pubip_from_net > "$PUBIP_FILE"
+    date '+%Y-%m-%d %H:%M:%S' > "$PUBIP_TIME_FILE"
+    date +%s > "$PUBIP_TIMESTAMP_FILE"
+}
+
+get_cached_pubip() { cat "$PUBIP_FILE" 2>/dev/null || echo "获取中..."; }
+get_cached_pubip_time() { cat "$PUBIP_TIME_FILE" 2>/dev/null || echo "未知时间"; }
+
+if [ ! -f "$PUBIP_FILE" ]; then
+    fetch_pubip
+else
+    (
+        now=$(date +%s)
+        last_ts=$(cat "$PUBIP_TIMESTAMP_FILE" 2>/dev/null || echo 0)
+        delta=$((now - last_ts))
+        if [ "$delta" -ge 300 ]; then
+            new_ip=$(get_pubip_from_net)
+            current=$(get_cached_pubip)
+            [ "$current" != "$new_ip" ] && fetch_pubip
+        fi
+    ) &
 fi
 
-[[ "${IP6_Check}" != "isIPv6" ]] && IPv6="N/A"
+pubip=$(get_cached_pubip)
+pubip_time=$(get_cached_pubip_time)
+echo -e " > 公网 IP: ${CYAN}${pubip}${RESET} (${YELLOW}抓取时间: ${pubip_time}${RESET})"
 
-[[ "${IP_Check}" != "isIPv4" ]] && IPv4="N/A"
-
-if [[ "${localip}" == "${IPv4}" ]] || [[ "${localip}" == "${IPv6}" ]] || [[ -z "${localip}" ]]; then
-	# localip=`ip -o a show | grep -w "lo" | grep -w "inet" | cut -d ' ' -f7 | awk '{split($1, a, "/"); print $2 "" a[1]}'`
-	localip=$(cat /etc/hosts | grep "localhost" | sed -n 1p | awk '{print $1}')
-fi
-
-echo " System information as of $date"
-echo
-printf "%-30s%-15s\n" " System Load:" "$load"
-printf "%-30s%-15s\n" " Private IP Address:" "$localip"
-printf "%-30s%-15s\n" " Public IPv4 Address:" "$IPv4"
-printf "%-30s%-15s\n" " Public IPv6 Address:" "$IPv6"
-printf "%-30s%-15s\n" " Memory Usage:" "$memory_usage"
-printf "%-30s%-15s\n" " Usage On /:" "$root_usage"
-printf "%-30s%-15s\n" " Swap Usage:" "$swap_usage"
-printf "%-30s%-15s\n" " Users Logged In:" "$usersnum"
-printf "%-30s%-15s\n" " Processes:" "$processes"
-printf "%-30s%-15s\n" " System Uptime:" "$time"
-echo
+echo -e "==============================================================="
 EOF
 
     cat >/etc/update-motd.d/90-footer <<'EOF'
 #!/bin/sh
-
-UpdateLog="/var/log/PackagesUpdatingStatus.log"
-if [ -f "$UpdateLog" ]; then
-    rm -rf $UpdateLog
-fi
-
-apt list --upgradable 2>/dev/null | awk 'END{print NR}' | tee -a "$UpdateLog" >/dev/null 2>&1
-UpdateRemind=$(cat $UpdateLog | tail -n 1)
-UpdateNum=$(expr $UpdateRemind - 1)
-
-[ "$UpdateNum" -eq "1" ] && printf "$UpdateNum package can be upgraded. Run 'apt list --upgradable' to see it.\n"
-[ "$UpdateNum" -gt "1" ] && printf "$UpdateNum packages can be upgraded. Run 'apt list --upgradable' to see them.\n"
-
-rm -rf $UpdateLog
+echo " > 服务器当前时间: $(date '+%Y-%m-%d %H:%M:%S %A')"
+printf "\n"
 EOF
 
     chmod +x /etc/update-motd.d/00-header
