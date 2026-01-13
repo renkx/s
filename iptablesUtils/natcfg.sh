@@ -246,6 +246,8 @@ rmDnat(){
     # 增加 --follow-symlinks 保护软链接
     sed -i --follow-symlinks "/^$localport>.*/d" $conf
     echo "done!"
+    # 删除规则后，后台脚本应该立即同步
+    setupService
 }
 
 testVars(){
@@ -285,7 +287,7 @@ done
 
 
 echo  -e "${red}你要做什么呢（请输入数字）？Ctrl+C 退出本脚本${black}"
-select todo in 增加转发规则 删除转发规则 列出所有转发规则 查看当前iptables配置
+select todo in 增加转发规则 删除转发规则 强制刷新服务 列出所有转发规则 查看当前iptables配置
 do
     case $todo in
     增加转发规则)
@@ -295,6 +297,9 @@ do
     删除转发规则)
         rmDnat
         #break
+        ;;
+    强制刷新服务)
+        setupService
         ;;
     # 增加到IP的转发)
     #     addSnat
