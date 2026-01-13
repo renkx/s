@@ -59,15 +59,15 @@ bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_tool.sh)
 
 ##### iptablesUtils [github](https://github.com/arloor/iptablesUtils)
 ```shell
-## iptables转发配置，创建软连接
-ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 # github
 bash <(curl -fsSL https://raw.githubusercontent.com/arloor/iptablesUtils/master/natcfg.sh)
 # 国内
 bash <(curl -fsSL https://www.arloor.com/sh/iptablesUtils/natcfg.sh)
-# 以下是改版
+# 以下是改版，上面旧脚本不要使用了
 bash <(curl -fsSL https://raw.githubusercontent.com/renkx/s/main/iptablesUtils/natcfg.sh)
 bash <(curl -fsSL https://gitee.com/renkx/ss/raw/main/iptablesUtils/natcfg.sh)
+## iptables转发配置，创建软连接（创建完成后，执行脚本的时候选择：强制刷新服务，就可以了）
+ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 
 ```
 
