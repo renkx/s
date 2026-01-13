@@ -300,6 +300,7 @@ do
         ;;
     强制刷新服务)
         setupService
+        lsDnat
         ;;
     # 增加到IP的转发)
     #     addSnat
