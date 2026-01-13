@@ -42,8 +42,6 @@ curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && ch
 
 ## 独有的.env配置，创建软连接
 [ -f ~/ag/conf/default/docker.env ] && ln -sf ~/ag/conf/default/docker.env ~/ag/.env
-## iptables转发配置，创建软连接
-ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 
 ## acme命令动态配置域名证书
 bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf
@@ -61,10 +59,16 @@ bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_tool.sh)
 
 ##### iptablesUtils [github](https://github.com/arloor/iptablesUtils)
 ```shell
+## iptables转发配置，创建软连接
+ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 # github
 bash <(curl -fsSL https://raw.githubusercontent.com/arloor/iptablesUtils/master/natcfg.sh)
 # 国内
 bash <(curl -fsSL https://www.arloor.com/sh/iptablesUtils/natcfg.sh)
+# 以下是改版
+bash <(curl -fsSL https://raw.githubusercontent.com/renkx/s/main/iptablesUtils/natcfg.sh)
+bash <(curl -fsSL https://gitee.com/renkx/ss/raw/main/iptablesUtils/natcfg.sh)
+
 ```
 
 ##### NextTrace [github](https://github.com/nxtrace/NTrace-core) [github cn](https://github.com/nxtrace/NTrace-core/blob/main/README_zh_CN.md)
