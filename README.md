@@ -68,7 +68,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/renkx/s/main/iptablesUtils/n
 bash <(curl -fsSL https://gitee.com/renkx/ss/raw/main/iptablesUtils/natcfg.sh)
 ## iptables转发配置，创建软连接（创建完成后，执行脚本的时候选择：强制刷新服务，就可以了）
 ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
-
+# 实时查看日志
+journalctl -u dnat -f
 ```
 
 ##### NextTrace [github](https://github.com/nxtrace/NTrace-core) [github cn](https://github.com/nxtrace/NTrace-core/blob/main/README_zh_CN.md)
