@@ -159,6 +159,9 @@ set_cronjob() {
 generate_acme() {
   cat > "$RUNNER" <<'EOF'
 #!/usr/bin/env bash
+# 增加 set -u，如果变量没定义就报错，方便我们定位
+set -u
+
 # 接收配置文件路径参数
 CONF_FILE="$1"
 if [ -z "$CONF_FILE" ] || [ ! -f "$CONF_FILE" ]; then
@@ -211,9 +214,11 @@ CURL_OPTS=(
 # 处理成字符串
 CURL_OPTS_STR="${CURL_OPTS[*]}"
 
-if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL"); then
+if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL") "$CONF_FILE"; then
   echo "❌ 脚本执行失败"
-  echo "👉 执行命令: bash <(curl $CURL_OPTS_STR $UPDATE_URL)"
+  echo "👉 执行命令:"
+  # 日志展示也要加上参数，方便以后排查
+  echo "bash <(curl $CURL_OPTS_STR $UPDATE_URL) $CONF_FILE"
   exit 1
 fi
 EOF
