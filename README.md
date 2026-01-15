@@ -14,6 +14,9 @@ bash <(curl -L -s check.unlock.media) -P http://127.0.0.1:10801
 bash <(curl -L -s media.ispvps.com)
 bash <(curl -L -s media.ispvps.com) -P http://127.0.0.1:10801
 bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/check.sh)
+# 节点测试脚本
+[nodeseek](https://www.nodeseek.com/post-297125-1)
+bash <(curl -sL https://run.NodeQuality.com)
 ## IP质量体检脚本 https://github.com/xykt/IPQuality
 bash <(curl -sL IP.Check.Place)
 ## 网络质量体检脚本 https://github.com/xykt/NetQuality
