@@ -202,8 +202,19 @@ docker_compose_update() {
     return
   }
 
+  # --- 新增：判断是否存在 deploy.sh ---
+  local COMPOSE_CMD
+  if [ -f "./deploy.sh" ]; then
+    chmod +x "./deploy.sh"  # 确保有执行权限
+    COMPOSE_CMD="./deploy.sh"
+    log "⚡️ 检测到 deploy.sh，将使用自定义脚本执行命令"
+  else
+    COMPOSE_CMD="docker compose"
+  fi
+  # ---------------------------------
+
   # 读取 compose.yml 中的 services
-  SERVICES=$(docker compose config --services 2>/dev/null || true)
+  SERVICES=$($COMPOSE_CMD config --services 2>/dev/null || true)
 
   [ -z "$SERVICES" ] && {
     log "⚠️ 未解析到任何 services，跳过: $dir"
@@ -214,7 +225,7 @@ docker_compose_update() {
   RUNNING_SERVICES=()
 
   for svc in $SERVICES; do
-    status=$(docker compose ps "$svc" --status running --services)
+    status=$($COMPOSE_CMD ps "$svc" --status running --services)
     if [ -n "$status" ]; then
       RUNNING_SERVICES+=("$svc")
     fi
@@ -230,12 +241,12 @@ docker_compose_update() {
   # pull 已运行 service 的镜像
   for svc in "${RUNNING_SERVICES[@]}"; do
     log "拉取镜像: $svc"
-    docker compose pull "$svc" >> "$LOG" 2>&1
+    $COMPOSE_CMD pull "$svc" >> "$LOG" 2>&1
   done
 
   # 只重建已运行的 service
   log "重建已运行 services"
-  docker compose up -d "${RUNNING_SERVICES[@]}" >> "$LOG" 2>&1
+  $COMPOSE_CMD up -d "${RUNNING_SERVICES[@]}" >> "$LOG" 2>&1
 
   # 清理无用镜像
   cleanup_images
