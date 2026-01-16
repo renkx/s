@@ -225,18 +225,33 @@ docker_compose_update() {
   RUNNING_SERVICES=()
 
   for svc in $SERVICES; do
-    status=$($COMPOSE_CMD ps "$svc" --status running --services)
+    status=$($COMPOSE_CMD ps "$svc" --status running --services 2>/dev/null)
     if [ -n "$status" ]; then
+      # --- 校验 auto.update 标签 ---
+      # 获取该服务对应容器的 ID (取第一个)
+      local container_id
+      container_id=$($COMPOSE_CMD ps -q "$svc" | head -n 1)
+
+      if [ -n "$container_id" ]; then
+        local auto_update
+        auto_update=$(docker inspect -f '{{ index .Config.Labels "auto.update" }}' "$container_id" 2>/dev/null || echo "true")
+
+        if [ "$auto_update" == "false" ]; then
+          log "⏭  服务 $svc 已标记为 auto.update=false，跳过更新"
+          continue
+        fi
+      fi
+      # ---------------------------------
       RUNNING_SERVICES+=("$svc")
     fi
   done
 
   if [ ${#RUNNING_SERVICES[@]} -eq 0 ]; then
-    log "无已启动的 service，跳过"
+    log "无需要更新的已启动 service（或均被标记为跳过），跳过"
     return
   fi
 
-  log "已运行 services: ${RUNNING_SERVICES[*]}"
+  log "待更新 services: ${RUNNING_SERVICES[*]}"
 
   # pull 已运行 service 的镜像
   for svc in "${RUNNING_SERVICES[@]}"; do
@@ -244,8 +259,8 @@ docker_compose_update() {
     $COMPOSE_CMD pull "$svc" >> "$LOG" 2>&1
   done
 
-  # 只重建已运行的 service
-  log "重建已运行 services"
+  # 只重建待更新的 service
+  log "重建 services"
   $COMPOSE_CMD up -d "${RUNNING_SERVICES[@]}" >> "$LOG" 2>&1
 
   # 清理无用镜像
