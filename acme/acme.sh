@@ -228,8 +228,45 @@ EOF
 }
 
 if [ ! -f "$ACME_INS" ]; then
-  # 安装acme && 自动更新
-  curl https://get.acme.sh | sh -s email=m@renkx.com && "$ACME_INS" --upgrade --auto-upgrade
+  log "🚀 开始安装 acme.sh ..."
+
+  # 1. 检测网络环境
+  check_net() {
+      curl -sL --connect-timeout 3 --max-time 5 -w "%{time_total}" -o /dev/null "$1" || echo 999
+  }
+
+  GITHUB_URL="https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh"
+  github_time=$(check_net "$GITHUB_URL")
+
+  if awk "BEGIN {exit !($github_time < 1.5)}"; then
+      log "✅ GitHub 良好 (${github_time}s)，使用官方快捷安装"
+      curl "$GITHUB_URL" | sh -s -- --install-online -m m@renkx.com
+  else
+      log "⚠️ GitHub 较慢 (${github_time}s)，采用官方推荐国内 Git 方案"
+
+      # 2. 检查 git 是否安装
+      if command -v git >/dev/null 2>&1; then
+          rm -rf /tmp/acme_git_src
+          if git clone --depth 1 https://gitee.com/neilpang/acme.sh.git /tmp/acme_git_src; then
+              cd /tmp/acme_git_src
+              ./acme.sh --install -m m@renkx.com
+              cd - > /dev/null
+              rm -rf /tmp/acme_git_src
+          fi
+      else
+          log "⚠️ 未发现 git，退回到 Gitee Curl 方案"
+          curl -sL https://gitee.com/neilpang/acme.sh/raw/master/acme.sh | sh -s -- --install-online -m m@renkx.com
+      fi
+  fi
+
+  # 3. 最终校验
+  if [ -f "$ACME_INS" ]; then
+      log "✅ acme.sh 安装成功"
+      "$ACME_INS" --set-default-ca --server letsencrypt
+  else
+      log "❌ acme.sh 安装失败，请检查网络环境"
+      exit 1
+  fi
 fi
 
 # 使用letsencrypt为默认服务 zerossl的网络有时候不通
