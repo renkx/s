@@ -173,7 +173,10 @@ GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh"
 GITEE_URL="https://gitee.com/renkx/ss/raw/main/acme/acme.sh"
 
 test_speed() {
-  curl -sL --connect-timeout 3 --max-time 5 -w "%{time_total}" -o /dev/null "$1" || echo 999
+  local res
+  res=$(curl -sL --connect-timeout 3 --max-time 5 -w "%{time_total}" -o /dev/null "$1")
+  # 如果返回不是数字或为空，强制给 999
+  [[ "$res" =~ ^[0-9.]+$ ]] && echo "$res" || echo "999"
 }
 
 echo "⏱ 正在检测 GitHub 网络质量 ..."
@@ -184,7 +187,7 @@ github_time=$(test_speed "$GITHUB_URL")
 # 国外 / 代理：< 0.5s
 THRESHOLD=1.5
 
-if awk "BEGIN {exit !($github_time < $THRESHOLD)}"; then
+if awk "BEGIN {exit !(${github_time:-999} < $THRESHOLD)}"; then
   echo "✅ GitHub 网络良好（${github_time}s < ${THRESHOLD}s），使用 GitHub"
   UPDATE_URL="$GITHUB_URL"
 else
