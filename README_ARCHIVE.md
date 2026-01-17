@@ -72,22 +72,6 @@ wget --no-check-certificate -qO Core_Install.sh 'https://cxthhhhh.com/CXT-Librar
 wget --no-check-certificate -qO Core_Install.sh 'https://cxthhhhh.com/CXT-Library/Network-Reinstall-System-Modify/CoreShell/Core_Install_v5.3.sh' && bash Core_Install.sh -d 11 -v 64 -a --mirror 'http://mirrors.tencentyun.com/debian'
 ```
 
-##### IdcOffer.com
-##### [地址](https://www.idcoffer.com/archives/6644)
-```shell
-# 面板操作
-wget -N --no-check-certificate https://down.vpsaff.net/linux/dd/network-reinstall-os.sh && chmod +x network-reinstall-os.sh && ./network-reinstall-os.sh
-
-# debian 12 阿里镜像 直接安装
-wget -N --no-check-certificate https://down.vpsaff.net/linux/dd/network-reinstall.sh && chmod +x network-reinstall.sh && ./network-reinstall.sh -d 12 -p 88889999 --mirror 'http://mirrors.aliyun.com/debian'
-
-wget -N --no-check-certificate https://raw.githubusercontent.com/renkx/d/main/network-reinstall.sh && chmod +x network-reinstall.sh && ./network-reinstall.sh -d 12 -p 88889999 --mirror 'http://mirrors.aliyun.com/debian'
-
-wget -N --no-check-certificate https://gitee.com/renkx/dd/raw/main/network-reinstall.sh && chmod +x network-reinstall.sh && ./network-reinstall.sh -d 12 -p 88889999 --mirror 'http://mirrors.aliyun.com/debian'
-
-
-```
-
 ##### 手动升级debian系统
 ```shell
 # 更新系统到最新
