@@ -73,6 +73,21 @@ gen_install_cert() {
 
     log "👉 处理域名: $domain (dns=$provider)"
 
+    # --- 自动创建证书存放目录 ---
+    # 使用 dirname 获取文件所在的父目录
+    local key_dir=$(dirname "$key_file")
+    local cert_dir=$(dirname "$fullchain_file")
+
+    if [ ! -d "$key_dir" ]; then
+        log "📁 创建 Key 存放目录: $key_dir"
+        mkdir -p "$key_dir"
+    fi
+
+    if [ ! -d "$cert_dir" ]; then
+        log "📁 创建证书存放目录: $cert_dir"
+        mkdir -p "$cert_dir"
+    fi
+
     case "$provider" in
       cf)
         local TOKEN="${VALUE1:-$CF_Token}"
@@ -174,8 +189,8 @@ GITEE_URL="https://gitee.com/renkx/ss/raw/main/acme/acme.sh"
 
 test_speed() {
   local res
-  res=$(curl -sL --connect-timeout 3 --max-time 5 -w "%{time_total}" -o /dev/null "$1")
-  # 如果返回不是数字或为空，强制给 999
+  # 确保即使 curl 失败也返回数字
+  res=$(curl -sL --connect-timeout 3 --max-time 5 -w "%{time_total}" -o /dev/null "$1" 2>/dev/null || echo "999")
   [[ "$res" =~ ^[0-9.]+$ ]] && echo "$res" || echo "999"
 }
 
@@ -187,7 +202,7 @@ github_time=$(test_speed "$GITHUB_URL")
 # 国外 / 代理：< 0.5s
 THRESHOLD=1.5
 
-if awk "BEGIN {exit !(${github_time:-999} < $THRESHOLD)}"; then
+if awk "BEGIN {exit !(${github_time} < ${THRESHOLD})}"; then
   echo "✅ GitHub 网络良好（${github_time}s < ${THRESHOLD}s），使用 GitHub"
   UPDATE_URL="$GITHUB_URL"
 else
