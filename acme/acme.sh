@@ -183,11 +183,13 @@ set_cronjob() {
     # index($0, search) > 0 确保只有包含该字符串的行才被替换
     new_cron=$(echo "$current_cron" | awk -v search="$cmd_part" -v replace="$full_entry" \
       '{ if (index($0, search) > 0) print replace; else print $0 }')
-    log "🔄 任务 [$CONF_FILE] 配置有变，已原位更新时间至 $cron_time"
+    new_cron=$(export SEARCH="$cmd_part" REPLACE="$full_entry"; \
+                   echo "$current_cron" | awk '{ if (index($0, ENVIRON["SEARCH"]) > 0) print ENVIRON["REPLACE"]; else print $0 }')
+    log "🔄 任务 [$CONF_FILE] 配置已原位更新"
   else
     # 使用 printf 确保换行符干净，避免 echo 产生的兼容性问题
     new_cron=$(printf "%s\n%s" "$current_cron" "$full_entry")
-    log "✅ 任务 [$CONF_FILE] 已新增随机时间: $cron_time"
+    log "✅ 任务 [$CONF_FILE] 已新增至末尾"
   fi
 
   # 5. 回写并过滤空行
