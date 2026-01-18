@@ -180,9 +180,6 @@ set_cronjob() {
   local new_cron
   if echo "$current_cron" | grep -qF "$cmd_part"; then
     # 使用 awk 进行精确匹配替换
-    # index($0, search) > 0 确保只有包含该字符串的行才被替换
-    new_cron=$(echo "$current_cron" | awk -v search="$cmd_part" -v replace="$full_entry" \
-      '{ if (index($0, search) > 0) print replace; else print $0 }')
     new_cron=$(export SEARCH="$cmd_part" REPLACE="$full_entry"; \
                    echo "$current_cron" | awk '{ if (index($0, ENVIRON["SEARCH"]) > 0) print ENVIRON["REPLACE"]; else print $0 }')
     log "🔄 任务 [$CONF_FILE] 配置已原位更新"
@@ -239,31 +236,12 @@ fi
 
 echo "🚀 执行更新脚本：$UPDATE_URL"
 
-CURL_OPTS=(
-  # 静默执行，不展示下载进度条
-  --silent
-  # 有错误提示
-  --show-error
-  # 自动跟随 HTTP 重定向（3xx）
-  --location
-  # 最多等待 3 秒建立 TCP 连接
-  --connect-timeout 3
-  # 整个 curl 命令最大执行时间 = 10 秒
-  --max-time 10
-  # 失败后自动重试 2 次
-  --retry 2
-  # 每次重试前等待 1 秒
-  --retry-delay 1
-)
+# 简化 Curl 调用，避免数组在 cat 写入时产生的解析歧义
+CURL_CMD="curl --silent --show-error --location --connect-timeout 5 --max-time 20 --retry 2"
 
-# 处理成字符串
-CURL_OPTS_STR="${CURL_OPTS[*]}"
-
-if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL") "$CONF_FILE"; then
-  echo "❌ 脚本执行失败"
-  echo "👉 执行命令:"
-  # 日志展示也要加上参数，方便以后排查
-  echo "bash <(curl $CURL_OPTS_STR $UPDATE_URL) $CONF_FILE"
+# 执行远程脚本
+if ! bash <($CURL_CMD "$UPDATE_URL") "$CONF_FILE"; then
+  echo "❌ 远程脚本执行失败"
   exit 1
 fi
 EOF
