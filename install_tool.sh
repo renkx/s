@@ -17,28 +17,6 @@ Info="${Green}[信息]${Font}"
 OK="${Green}[OK]${Font}"
 Error="${Red}[错误]${Font}"
 
-# 直接开始系统优化
-export startOptimizing='0'
-# 直接开始安装xanmod内核
-export startInstallXanmod='0'
-
-while [[ $# -ge 1 ]]; do
-	case $1 in
-	--startOptimizing)
-		shift
-		startOptimizing="1"
-		;;
-	--startInstallXanmod)
-		shift
-		startInstallXanmod="1"
-		;;
-	*)
-		echo -ne "\nInvaild option: '$1'\n\n";
-		exit 1
-		;;
-	esac
-done
-
 echo_info() {
   # shellcheck disable=SC2145
   echo -e "${Info} ${GreenBG} $@ ${Font}"
@@ -1096,9 +1074,70 @@ install_docker_auto_update() {
   fi
 }
 
-menu() {
+# 将所有功能逻辑封装到一个独立的函数中
+action_logic() {
+    case $1 in
+    0)
+        exit 0
+        ;;
+    1)
+        optimizing_system
+        ;;
+    2)
+        install_base
+        ;;
+    3)
+        install_docker
+        ;;
+    4)
+        install_on_my_zsh
+        ;;
+    5)
+        update_motd
+        ;;
+    6)
+        update_nameserver
+        ;;
+    7)
+        apt -y autoremove --purge qemu-guest-agent
+        ;;
+    8)
+        update_swap
+        ;;
+    9)
+        install_acme
+        ;;
+    10)
+        install_docker_auto_update
+        ;;
+    333)
+        optimizing_system
+        install_base
+        install_docker
+        install_on_my_zsh
+        update_motd
+        update_nameserver
+        apt -y autoremove --purge qemu-guest-agent
+        ;;
+    887)
+        check_sys_official_xanmod
+        ;;
+    888)
+        check_sys_official_xanmod_and_detele_kernel
+        ;;
+    889)
+        detele_kernel_custom
+        ;;
+    *)
+        echo -e "${RedBG}错误: 无效的指令 [$1]${Font}"
+        return 1
+        ;;
+    esac
+}
 
-    echo
+# 交互式菜单界面
+menu() {
+    clear
     echo -e "${GreenBG}—————————————— 安装向导 ——————————————${Font}"
     echo -e "${Green}0.${Font} 退出"
     echo -e "${Green}1.${Font} 系统优化"
@@ -1121,6 +1160,7 @@ menu() {
     check_status
     get_system_info
     echo -e " 系统信息: $opsy ${Green}$virtual${Font} $arch ${Green}$kern${Font} "
+
     if [[ ${kernel_status} == "noinstall" ]]; then
       echo -e " 当前状态: 未安装 加速内核 请先安装内核"
     else
@@ -1129,85 +1169,17 @@ menu() {
     echo -e " 当前拥塞控制算法为: ${Green}${net_congestion_control}${Font} 当前队列算法为: ${Green}${net_qdisc}${Font} "
 
     read -rp " 请输入数字：" menu_num
-    case $menu_num in
-    0)
-        exit 0
-        ;;
-    1)
-        optimizing_system
-        menu
-        ;;
-    2)
-        install_base
-        menu
-        ;;
-    3)
-        install_docker
-        menu
-        ;;
-    4)
-        install_on_my_zsh
-        menu
-        ;;
-    5)
-        update_motd
-        menu
-        ;;
-    6)
-        update_nameserver
-        menu
-        ;;
-    7)
-        apt -y autoremove --purge qemu-guest-agent
-        menu
-        ;;
-    8)
-        update_swap
-        menu
-        ;;
-    9)
-        install_acme
-        menu
-        ;;
-    10)
-        install_docker_auto_update
-        menu
-        ;;
-    333)
-        optimizing_system
-        install_base
-        install_docker
-        install_on_my_zsh
-        update_motd
-        update_nameserver
-        apt -y autoremove --purge qemu-guest-agent
-        menu
-        ;;
-    887)
-        check_sys_official_xanmod
-        menu
-        ;;
-    888)
-        check_sys_official_xanmod_and_detele_kernel
-        menu
-        ;;
-    889)
-        detele_kernel_custom
-        menu
-        ;;
-    *)
-        echo -e "${RedBG}请输入正确的数字${Font}"
-        menu
-        ;;
-    esac
+    action_logic "$menu_num"
+
+    # 执行完逻辑后再次回到菜单（如果是交互模式）
+    menu
 }
 
-# 直接开始系统优化
-if [[ "$startOptimizing" == "1" ]]; then
-  optimizing_system
-# 直接开始安装xanmod内核
-elif [[ "$startInstallXanmod" == "1" ]]; then
-  check_sys_official_xanmod_and_detele_kernel
+# 脚本执行入口判断
+if [ -n "$1" ]; then
+    # 如果命令行有参数，直接执行逻辑
+    action_logic "$1"
 else
-  menu
+    # 如果没有参数，进入交互菜单
+    menu
 fi
