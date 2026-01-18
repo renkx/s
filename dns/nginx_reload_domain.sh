@@ -80,14 +80,15 @@ domain_check() {
 
     # 每次检查时重新提取域名，实现“配置热同步”
     local domains=()
-    mapfile -t domains < <(docker exec nginx grep -rhE '^\s*server\s+[a-zA-Z0-9.-]+\.[a-z]{2,}' /etc/nginx/conf.d/ | \
+    # 后面加上 || true，确保即使 grep 结果为空，这一行也不会返回错误状态码
+    mapfile -t domains < <(docker exec nginx grep -rhE '^\s*server\s+[a-zA-Z0-9.-]+\.[a-z]{2,}' /etc/nginx/conf.d/ 2>/dev/null | \
         grep -v "#" | \
         sed -E 's/^\s*server\s+([^:; ]+).*/\1/' | \
-        grep -vE '127.0.0.1|localhost|0.0.0.0' | sort -u)
+        grep -vE '127.0.0.1|localhost|0.0.0.0' | sort -u || true)
 
     if [ ${#domains[@]} -eq 0 ]; then
         log "未发现有效域名，跳过本次检查。"
-        return
+        return 0
     fi
 
     should_reload=false
@@ -114,7 +115,12 @@ domain_check() {
         fi
     done
 
-    [ "$should_reload" = true ] && nginx_reload
+    if [ "$should_reload" = true ]; then
+            nginx_reload
+    fi
+    # 明确返回成功
+    return 0
 }
 
-domain_check
+# 确保脚本最后一行执行了函数，并以 0 状态退出
+domain_check && exit 0 || exit 1
