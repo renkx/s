@@ -32,17 +32,6 @@ echo_error() {
   echo -e "${Error} ${RedBG} $@ ${Font}" >&2
 }
 
-# 依据上个命令是否成功，判断是否继续执行
-judge() {
-  if [[ 0 -eq $? ]]; then
-    echo_ok "$1 完成"
-    sleep 1
-  else
-    echo_error "$1 失败"
-    exit 1
-  fi
-}
-
 # 检测执行结果，并输出相应的提示信息
 check_result() {
   if [[ 0 -eq $? ]]; then
@@ -64,15 +53,27 @@ source '/etc/os-release'
 # 从VERSION中提取发行版系统的英文名称，为了在debian/ubuntu下添加相对应的Nginx apt源
 VERSION=$(echo "${VERSION}" | awk -F "[()]" '{print $2}')
 
-echo_info "检测是否能ping谷歌"
-IsGlobal="0"
-delay="$(ping -4 -c 2 -w 2 www.google.com | grep rtt | cut -d'/' -f4 | awk '{ print $3 }' | sed -n '/^[0-9]\+\(\.[0-9]\+\)\?$/p')";
-if [ "$delay" != "" ] ; then
-	IsGlobal="1"
-	echo_info "延迟：$delay ms , ping yes"
-else
-  echo_info "延迟：$delay ms , ping no"
-fi
+# 检测网络
+check_network_env() {
+  # 1. 缓存检查：如果 IsGlobal 已定义，直接退出函数
+  [ -n "${IsGlobal:-}" ] && return
+
+  echo_info "🔍 正在分析网络路由..."
+
+  # 3. 核心探测逻辑
+  # 使用 -c 2 发送两个包比一个包更稳，防止偶发性的第一个包丢包（丢包在跨境网络很常见）
+  # -w 3 给总时间 3 秒上限，比 -W 更强制
+  if ping -4 -c 2 -w 3 www.google.com >/dev/null 2>&1; then
+    ENV_TIP="🌍 海外 (Global)"
+    IsGlobal=1
+  else
+    ENV_TIP="🇨🇳 国内 (Mainland China)"
+    IsGlobal=0
+  fi
+
+  export IsGlobal
+  echo_info "📍 网络定位: $ENV_TIP"
+}
 
 judge() {
     if [[ 0 -eq $? ]]; then
@@ -155,6 +156,8 @@ check_virt() {
 }
 
 install_base() {
+  check_network_env
+
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
     bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_base.sh)
@@ -165,6 +168,8 @@ install_base() {
 }
 
 install_docker() {
+  check_network_env
+
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
     bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_docker.sh)
@@ -174,8 +179,9 @@ install_docker() {
   fi
 }
 
-install_on_my_zsh()
-{
+install_on_my_zsh() {
+  check_network_env
+
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
     bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/myzsh.sh)
@@ -187,6 +193,8 @@ install_on_my_zsh()
 
 # 系统优化
 optimizing_system() {
+  check_network_env
+
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
     bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/optimizing_system.sh)
@@ -204,6 +212,8 @@ upgrading_system() {
 
 # 虚拟内存设置
 update_swap() {
+  check_network_env
+
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
     bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/swap.sh)
@@ -216,6 +226,8 @@ update_swap() {
 # 更新 nameserver
 update_nameserver()
 {
+  check_network_env
+
   chattr -i /etc/resolv.conf
   judge "chattr -i /etc/resolv.conf 解锁"
   # 锁定DNS解析（第一个异常会请求第二个，为了防止docker容器还没启动。比如warp就会出问题）
@@ -808,6 +820,8 @@ detele_kernel_custom() {
 
 # 安装acme命令动态配置域名证书
 install_acme() {
+  check_network_env
+
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
     echo_info "bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf"
@@ -821,6 +835,8 @@ install_acme() {
 
 # 安装docker容器自动更新
 install_docker_auto_update() {
+  check_network_env
+
   if [[ "$IsGlobal" == "1" ]];then
     echo_info "执行【github】的脚本 ..."
     echo_info "bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh) ~/ag"
