@@ -139,36 +139,16 @@ for dir in "${COMPOSE_DIRS[@]}"; do
   VALID_COMPOSE_DIRS+=("$dir")
 done
 
-GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh"
-GITEE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh"
-
-# -----------------------------
-# 工业级测速函数
-# -----------------------------
-test_speed() {
-  curl -sL \
-    --connect-timeout 3 \
-    --max-time 5 \
-    -w "%{time_total}" \
-    -o /dev/null \
-    "$1" || echo 999
-}
-
-echo "⏱ 正在检测 GitHub 网络质量 ..."
-
-github_time="$(test_speed "$GITHUB_URL")"
-
-# 判定阈值（秒）
-# 国内 GitHub 常见：2~5s
-# 国外 / 代理：< 0.5s
-THRESHOLD=1.5
-
-if awk "BEGIN {exit !($github_time < $THRESHOLD)}"; then
-  echo "✅ GitHub 网络良好（${github_time}s < ${THRESHOLD}s），使用 GitHub"
-  UPDATE_URL="$GITHUB_URL"
+# 环境判断：利用 Google 判断国内外
+# -4: 强制 IPv4
+# -c 2: 发送 2 个包
+# -w 2: 整个 ping 命令限时 2 秒
+if ping -4 -c 2 -w 2 www.google.com >/dev/null 2>&1; then
+  echo "🌍 检测到海外环境 (Google Ping OK)，使用 GitHub 源"
+  UPDATE_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh"
 else
-  echo "⚠️ GitHub 网络较慢（${github_time}s ≥ ${THRESHOLD}s），切换 Gitee"
-  UPDATE_URL="$GITEE_URL"
+  echo "🇨🇳 检测到国内环境 (Google Ping Failed)，使用 Gitee 源"
+  UPDATE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh"
 fi
 
 echo "🚀 执行更新脚本：$UPDATE_URL"
