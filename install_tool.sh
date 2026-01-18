@@ -222,17 +222,6 @@ optimizing_system() {
       apt -y install ethtool
   fi
 
-  # 检查系统虚拟化类型，如果是 KVM，则关闭 TSO 和 GSO
-  if [ "$virt" == "KVM" ]; then
-      echo_info "系统虚拟化类型为 KVM，正在关闭 TSO 和 GSO..."
-      for interface in $nic_interface; do
-          ethtool -K $interface tso off gso off
-          echo_info "TSO 和 GSO 关闭于接口 $interface"
-      done
-  else
-      echo_info "系统虚拟化类型非 KVM，不需要关闭 TSO 和 GSO。"
-  fi
-
   echo_info "正在安装 haveged 增强性能中！"
   apt install haveged -y
   echo_ok "安装 haveged"
@@ -256,10 +245,10 @@ net.ipv4.tcp_no_metrics_save=1
 net.ipv4.tcp_ecn=0
 # 禁用 F-RTO，减少误触发重传
 net.ipv4.tcp_frto=0
-# 禁止 MTU 探测，避免不必要的延迟
-net.ipv4.tcp_mtu_probing=0
-# 关闭 RFC1337 保护，保持兼容性
-net.ipv4.tcp_rfc1337=0
+# 开启 MTU 探测，防止跨国大包黑洞
+net.ipv4.tcp_mtu_probing=1
+# RFC1337 开启保护，防止 TIME_WAIT 重用
+net.ipv4.tcp_rfc1337=1
 # 开启选择性确认，提高丢包恢复能力
 net.ipv4.tcp_sack=1
 # 启用 FACK，减少网络拥塞时的重复确认
@@ -274,30 +263,32 @@ net.ipv4.tcp_moderate_rcvbuf=1
 # =========================
 # TCP 缓冲区设置
 # =========================
-# 接收缓冲：最小8KB，默认256KB，最大128MB
-net.ipv4.tcp_rmem=8192 262144 134217728
-# 发送缓冲：最小4KB，默认16KB，最大128MB
-net.ipv4.tcp_wmem=4096 16384 134217728
+# 接收缓冲：最小8KB，默认1MB，最大 128MB
+net.ipv4.tcp_rmem=8192 1048576 134217728
+# 发送缓冲：最小4KB，默认1MB，最大 128MB
+net.ipv4.tcp_wmem=4096 1048576 134217728
 # TCP 内存合并阈值，减少内存碎片
 net.ipv4.tcp_collapse_max_bytes=6291456
 # 未发送数据低水位阈值，控制内核发送行为
-net.ipv4.tcp_notsent_lowat=131072
+net.ipv4.tcp_notsent_lowat=16384
 
 # =========================
 # TCP 连接参数优化
 # =========================
+# 开启 TFO
+net.ipv4.tcp_fastopen=3
 # 减少 TIME_WAIT 堆积
 net.ipv4.tcp_fin_timeout=15
-# TCP Keepalive 空闲时间
-net.ipv4.tcp_keepalive_time=600
+# TCP Keepalive 空闲时间 缩短存活时间，更快清理死连接
+net.ipv4.tcp_keepalive_time=300
 # Keepalive 探测间隔
 net.ipv4.tcp_keepalive_intvl=3
 # Keepalive 最大探测次数
 net.ipv4.tcp_keepalive_probes=5
 # TCP 初次重传次数
 net.ipv4.tcp_retries1=3
-# TCP 全重传次数
-net.ipv4.tcp_retries2=5
+# TCP 全重传次数 跨国链路建议不要太小，防止抖动断开
+net.ipv4.tcp_retries2=8
 # 空闲后不触发慢启动，保持速度
 net.ipv4.tcp_slow_start_after_idle=0
 # 开启时间戳，防止序列号回绕
@@ -309,9 +300,11 @@ net.ipv4.tcp_syn_retries=3
 # SYN-ACK 重试次数
 net.ipv4.tcp_synack_retries=3
 # SYN 队列长度，支持高并发连接
-net.ipv4.tcp_max_syn_backlog=32768
+net.ipv4.tcp_max_syn_backlog=819200
+# 允许更多孤儿连接（防止突发流量报错）
+net.ipv4.tcp_max_orphans = 32768
 # TIME_WAIT 最大数量
-net.ipv4.tcp_max_tw_buckets=65536
+net.ipv4.tcp_max_tw_buckets=131072
 # 队列溢出直接拒绝新连接，防止内存崩溃
 net.ipv4.tcp_abort_on_overflow=1
 
@@ -353,9 +346,13 @@ net.core.default_qdisc=fq
 # 连接跟踪优化
 # =========================
 # 最大连接追踪数
+# 默认通常是 65536，对于代理服务器太小，直接给到 200万+
 net.netfilter.nf_conntrack_max=2621440
 # 已建立 TCP 连接超时
 net.netfilter.nf_conntrack_tcp_timeout_established=600
+net.netfilter.nf_conntrack_tcp_timeout_close_wait=60
+net.netfilter.nf_conntrack_tcp_timeout_fin_wait=120
+net.netfilter.nf_conntrack_tcp_timeout_time_wait=120
 
 # =========================
 # 系统资源 / 文件句柄
@@ -377,6 +374,25 @@ EOF
   fi
   # 加载 /usr/lib/sysctl.d/* /etc/sysctl.d/* 下的自定义配置
   sysctl --system
+
+  # ========================================================
+  # 修正 nf_conntrack 哈希表性能瓶颈 这里的 hashsize 建议为 nf_conntrack_max 的 1/8 左右
+  # ========================================================
+  echo_info "优化 nf_conntrack 哈希桶大小 (hashsize)..."
+  # 定义目标 hashsize
+  TARGET_HASHSIZE=327680
+  # 立即修改当前运行环境 (防止重启前性能崩溃)
+  if [ -f "/sys/module/nf_conntrack/parameters/hashsize" ]; then
+      echo $TARGET_HASHSIZE > /sys/module/nf_conntrack/parameters/hashsize
+      echo_ok "当前 hashsize 已提升至 $TARGET_HASHSIZE"
+  fi
+  # 永久写入模块配置 (确保重启后生效)
+  # 注意：这步非常关键，因为 sysctl 无法控制这个参数
+  if [ ! -d "/etc/modprobe.d" ]; then
+      mkdir -p /etc/modprobe.d
+  fi
+  echo "options nf_conntrack hashsize=$TARGET_HASHSIZE" > /etc/modprobe.d/nf_conntrack.conf
+  echo_ok "已将 hashsize 写入 modprobe 配置"
 
   # 参考：https://www.emqx.com/zh/blog/emqx-performance-tuning-linux-conntrack-and-mqtt-connections
   # Docker 等应用正在依赖 conntrack 提供服务，我们无法直接关闭它

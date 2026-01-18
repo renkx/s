@@ -227,10 +227,11 @@ install_docker() {
       ## "bip": "172.17.0.1/16", # docker网段设置
       cat > /etc/docker/daemon.json << EOF
 {
+  "userland-proxy": false,
   "exec-opts": ["native.cgroupdriver=systemd"],
   "log-driver": "json-file",
   "log-opts": {
-    "max-size": "1m",
+    "max-size": "10m",
     "max-file": "3"
   }
 }
@@ -268,12 +269,15 @@ EOF
       judge "创建 /etc/docker/daemon.json 文件"
 
       ## "bip": "172.17.0.1/16", # docker网段设置
+      ## Docker 默认会启动一个叫 docker-proxy 的进程来处理端口转发。在高并发下，这个进程的效率远低于内核的 iptables/nftables
+      ## 关闭它，强制 Docker 使用内核原生的 NAT，这样能减轻 nf_conntrack 的压力并提升性能
       cat > /etc/docker/daemon.json << EOF
 {
+  "userland-proxy": false,
   "exec-opts": ["native.cgroupdriver=systemd"],
   "log-driver": "json-file",
   "log-opts": {
-    "max-size": "1m",
+    "max-size": "10m",
     "max-file": "3"
   }
 }
