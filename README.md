@@ -68,6 +68,10 @@ bash <(curl -fsSL https://gitee.com/renkx/ss/raw/main/iptablesUtils/natcfg.sh)
 ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 # 实时查看日志
 journalctl -u dnat -f
+# 说明：其他用户态（比如 realm、nginx）比 iptables（内核态/NAT）会在转发机上产生 2 条 conntrack 记录（客户端<->转发机，转发机<->落地机）
+# 目前用itdog发送大量tcp测试，realm的一个转发端口崩了，会导致其他所有的都崩溃，除非一个端口一个docker容器
+# Nginx 是 worker进程隔离，不会出现一个不行都不行的情况，但只要是用户态的，conntrack消耗都会是内核态的2倍
+# 但是 iptables是内核态，【用户态的重试机制和缓存优化】就压根不会，导致会出问题（AI可查关键词）
 ```
 
 ##### NextTrace [github](https://github.com/nxtrace/NTrace-core) [github cn](https://github.com/nxtrace/NTrace-core/blob/main/README_zh_CN.md)
@@ -131,12 +135,11 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 ## linode、vultr 遇到网络问题，网卡 auto 改为 allow-hotplug，dd脚本参数加：--autoplugadapter "0"
 ## aws的新加坡比较好用，天津只是偶尔波动大。日本的北京晚高峰特别烂
 ## misaka 21$ PCCW线路，晚高峰联通爆炸
-## zgocloud debian10可以dd，用debian11 dd会报磁盘错误（首次dd，没有二次尝试直接换10了）
 ## 搬瓦工迁移之后连不上网，有可能是 /etc/network/interfaces 的配置和 ip a 看到的不一样，改一下就行，改完重启：systemctl restart networking
 ## 如果网络配置文件被反复修改导致网络连接不上，就锁死：chattr +i /etc/network/interfaces
 
 #####
-## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是20+万，有些参数重启后不生效
+## 重启后一定要执行 sysctl -a | grep conntrack ，查看 conntrack_max 是不是200+万，有些参数重启后不生效
 ## systemctl status systemd-sysctl.service 可以看下具体报错
 ## 会出现【nf_conntrack: nf_conntrack: table full, dropping packet】错误，用itdog一直发送tcping就会产生
 ## 执行生效命令：sysctl --system
@@ -146,7 +149,19 @@ watch -n 1 "echo '--- Conntrack 实时状态 ---' && \
 count=\$(cat /proc/sys/net/netfilter/nf_conntrack_count) && \
 max=\$(cat /proc/sys/net/netfilter/nf_conntrack_max) && \
 buckets=\$(cat /sys/module/nf_conntrack/parameters/hashsize) && \
-awk -v c=\"\$count\" -v m=\"\$max\" -v b=\"\$buckets\" 'BEGIN { printf \"当前连接: %d\n最大限制: %d\n使用率: %.2f%%\n平均桶负载: %.2f\n\", c, m, (c/m)*100, c/b }'"
+slab_data=\$(awk '/^nf_conntrack / {print \$4, \$2}' /proc/slabinfo) && \
+echo \"\$slab_data\" | awk -v c=\"\$count\" -v m=\"\$max\" -v b=\"\$buckets\" '{ \
+    os=\$1; no=\$2; mem_kb=(os*no)/1024; \
+    printf \"当前连接: %d\n\", c; \
+    printf \"最大限制: %d\n\", m; \
+    printf \"使用率: %.2f%%\n\", (c/m)*100; \
+    printf \"平均桶负载: %.2f\n\", c/b; \
+    printf \"----------------------------\n\"; \
+    printf \"单个对象大小: %d Bytes\n\", os; \
+    printf \"当前分配对象: %d\n\", no; \
+    printf \"内存占用(KB): %.2f KB\n\", mem_kb; \
+    printf \"内存占用(MB): %.4f MB\n\", mem_kb/1024 \
+}'"
 #####
 
 ## debian 12之前，系统日志：/var/log/messages，之后为 journalctl -ef
