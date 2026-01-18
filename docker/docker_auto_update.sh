@@ -60,34 +60,57 @@ log() {
 
 # 设置 crontab 任务
 set_cronjob() {
-  _CRONTAB="crontab"
-
   [ -f "$RUNNER" ] || {
     log "❌ runner 不存在，跳过 cron 设置"
     return 1
   }
 
-  # 获取当前 crontab
-  current_cron="$($_CRONTAB -l 2>/dev/null || true)"
+  # 1. 生成随机分钟 (0-59)，基于主机名保证每台机器固定但各不相同
+  local seed=$(echo "$(hostname)" | cksum | cut -d' ' -f1)
+  local rand_min=$(( seed % 60 ))
 
-  # 删除已有包含 $RUNNER 的行
-  new_cron="$(echo "$current_cron" | grep -vF "$RUNNER")"
+  # 2. 构造命令部分和完整行
+  # 唯一特征标识：bash $RUNNER
+  local cmd_part="bash $RUNNER"
 
-  # 添加最新的 cron
+  # 如果有参数，拼接到命令中
+  local full_cmd_with_args
   if [ "${#COMPOSE_DIRS[@]}" -gt 0 ]; then
-    CRON_CMD="bash $RUNNER ${COMPOSE_DIRS[*]}"
+    full_cmd_with_args="$cmd_part ${COMPOSE_DIRS[*]}"
   else
-    CRON_CMD="bash $RUNNER"
+    full_cmd_with_args="$cmd_part"
   fi
-  new_cron="$new_cron
-*/5 * * * * $CRON_CMD > /dev/null 2>&1"
-  # 删除“开头连续的空行，直到遇到第一个非空行”
-  new_cron="$(echo "$new_cron" | sed '/./,$!d')"
 
-  # 安装新的 crontab
-  echo "$new_cron" | $_CRONTAB -
+  # 最终的 cron 行：随机分钟 每小时 执行
+  local cron_time="$rand_min * * * *"
+  local full_entry="$cron_time $full_cmd_with_args > /dev/null 2>&1"
 
-  log "✅ crontab 已更新"
+  # 3. 获取当前 crontab
+  local current_cron
+  current_cron="$(crontab -l 2>/dev/null || true)"
+
+  # 4. 幂等检查：如果完全一致，直接返回
+  if echo "$current_cron" | grep -qF "$full_entry"; then
+    log "ℹ️ 任务已存在且配置一致 (时间: $cron_time)，跳过"
+    return 0
+  fi
+
+  # 5. 原位替换或追加
+  local new_cron
+  if echo "$current_cron" | grep -qF "$cmd_part"; then
+    # 发现包含 "bash $RUNNER" 的行，进行原位替换
+    # 使用 ENVIRON 方式传递变量给 awk，绝对安全
+    new_cron=$(export SEARCH="$cmd_part" REPLACE="$full_entry"; \
+               echo "$current_cron" | awk '{ if (index($0, ENVIRON["SEARCH"]) > 0) print ENVIRON["REPLACE"]; else print $0 }')
+    log "🔄 任务已原位更新 (随机分钟: $rand_min)"
+  else
+    # 彻底不存在，追加到末尾
+    new_cron=$(printf "%s\n%s" "$current_cron" "$full_entry")
+    log "✅ 任务已新增 (随机分钟: $rand_min)"
+  fi
+
+  # 6. 回写并清理空行
+  echo "$new_cron" | grep -v '^$' | crontab -
 }
 
 # 生成本地可执行脚本
@@ -167,23 +190,15 @@ CURL_OPTS=(
   --retry-delay 1
 )
 
-# 处理成字符串
-CURL_OPTS_STR="${CURL_OPTS[*]}"
-
+# 直接使用数组展开 "${VALID_COMPOSE_DIRS[@]}"，完美处理空格
 if [ "${#VALID_COMPOSE_DIRS[@]}" -gt 0 ]; then
-  CMD="bash <(curl $CURL_OPTS_STR $UPDATE_URL) ${VALID_COMPOSE_DIRS[*]}"
   if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL") "${VALID_COMPOSE_DIRS[@]}"; then
     echo "❌ 更新脚本执行失败"
-    echo "👉 执行命令:"
-    echo "$CMD"
     exit 1
   fi
 else
-  CMD="bash <(curl $CURL_OPTS_STR $UPDATE_URL)"
   if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL"); then
     echo "❌ 更新脚本执行失败"
-    echo "👉 执行命令:"
-    echo "$CMD"
     exit 1
   fi
 fi
