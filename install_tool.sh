@@ -928,9 +928,6 @@ menu() {
 
     read -rp " 请输入数字：" menu_num
     action_logic "$menu_num"
-
-    # 执行完逻辑后再次回到菜单（如果是交互模式）
-    menu
 }
 
 # 脚本执行入口判断
@@ -938,6 +935,13 @@ if [ -n "$1" ]; then
     # 如果命令行有参数，直接执行逻辑
     action_logic "$1"
 else
-    # 如果没有参数，进入交互菜单
-    menu
+    # 交互模式使用循环，直到用户选择 0 (退出)
+    while true; do
+        menu
+        # 如果 action_logic 内部 exit 0 了就会退出，
+        # 如果没有 exit，则在 menu 执行完后回到这里继续下一次循环
+        # 增加一个简单的暂停，方便用户看清上一个命令的结果
+        echo -e "\n${Info} 按任意键回到菜单..."
+        read -n 1
+    done
 fi
