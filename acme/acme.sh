@@ -156,10 +156,9 @@ set_cronjob() {
     return 1
   }
 
-  # 混合 [主机名 + 配置文件名] 生成唯一种子
+  # 结合主机名和路径生成固定随机时间 (0-59 min, 0-5 hour)
   # 这样：不同机器会错开，同机器不同配置也会错开
   local seed=$(echo "$(hostname)$CONF_FILE" | cksum | cut -d' ' -f1)
-
   local rand_min=$(( seed % 60 ))
   # 比如限制在凌晨 0-5 点之间随机
   local rand_hour=$(( seed % 6 ))
@@ -168,30 +167,31 @@ set_cronjob() {
   local cron_time="$rand_min $rand_hour 1,15 * *"
   local full_entry="$cron_time $cmd_part > /dev/null 2>&1"
 
+  # 获取当前 crontab，确保换行符正确
   local current_cron
   current_cron="$(crontab -l 2>/dev/null || true)"
 
-  # 2. 检查【全匹配】：如果时间、脚本、参数完全一致，不做任何操作
+  # 幂等检查：完全一致则跳过
   if echo "$current_cron" | grep -qF "$full_entry"; then
-    log "ℹ️ 任务 [$CONF_FILE] 已存在且配置一致，跳过"
+    log "ℹ️ 任务 [$CONF_FILE] 已在 $cron_time 运行，无需更新"
     return 0
   fi
 
   local new_cron
-  # 3. 检查【特征匹配】：匹配 "脚本 + 对应配置文件"
-  # 这样即使有多个任务用同一个 $RUNNER 但不同 $CONF_FILE，也不会互相干扰
   if echo "$current_cron" | grep -qF "$cmd_part"; then
-    # 匹配到了该脚本和对应的配置文件，但时间或其他部分不一致：原位更新
-    new_cron=$(echo "$current_cron" | sed "s@.*$cmd_part.*@$full_entry@")
-    log "🔄 任务 [$CONF_FILE] 配置有变，已原位更新时间"
+    # 使用 awk 进行精确匹配替换
+    # index($0, search) > 0 确保只有包含该字符串的行才被替换
+    new_cron=$(echo "$current_cron" | awk -v search="$cmd_part" -v replace="$full_entry" \
+      '{ if (index($0, search) > 0) print replace; else print $0 }')
+    log "🔄 任务 [$CONF_FILE] 配置有变，已原位更新时间至 $cron_time"
   else
-    # 该脚本+该配置文件的组合在 crontab 里完全不存在：追加
-    new_cron="$(echo -e "$current_cron\n$full_entry")"
-    log "✅ 任务 [$CONF_FILE] 不存在，已新增"
+    # 使用 printf 确保换行符干净，避免 echo 产生的兼容性问题
+    new_cron=$(printf "%s\n%s" "$current_cron" "$full_entry")
+    log "✅ 任务 [$CONF_FILE] 已新增随机时间: $cron_time"
   fi
 
-  # 4. 写入并清理空行
-  echo "$new_cron" | sed '/^$/d' | crontab -
+  # 5. 回写并过滤空行
+  echo "$new_cron" | grep -v '^$' | crontab -
 }
 
 # 生成本地可执行脚本
