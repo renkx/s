@@ -194,7 +194,6 @@ set_cronjob() {
 }
 
 # 生成本地可执行脚本
-# shellcheck disable=SC2120
 generate_acme() {
   cat > "$RUNNER" <<'EOF'
 #!/usr/bin/env bash
@@ -211,33 +210,26 @@ fi
 GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh"
 GITEE_URL="https://gitee.com/renkx/ss/raw/main/acme/acme.sh"
 
-test_speed() {
-  local res
-  # 确保即使 curl 失败也返回数字
-  res=$(curl -sL --connect-timeout 3 --max-time 5 -w "%{time_total}" -o /dev/null "$1" 2>/dev/null || echo "999")
-  [[ "$res" =~ ^[0-9.]+$ ]] && echo "$res" || echo "999"
-}
+echo "⏱ 正在判断网络环境 (Google Ping 测试)..."
 
-echo "⏱ 正在检测 GitHub 网络质量 ..."
-github_time=$(test_speed "$GITHUB_URL")
-
-# 判定阈值（秒）
-# 国内 GitHub 常见：2~5s
-# 国外 / 代理：< 0.5s
-THRESHOLD=1.5
-
-if awk "BEGIN {exit !(${github_time} < ${THRESHOLD})}"; then
-  echo "✅ GitHub 网络良好（${github_time}s < ${THRESHOLD}s），使用 GitHub"
+# 使用 ping 判断国内外环境
+# -4: 强制 IPv4
+# -c 2: 发送 2 个包
+# -w 2: 整个命令限时 2 秒
+if ping -4 -c 2 -w 2 www.google.com >/dev/null 2>&1; then
+  echo "🌍 检测到海外环境 (Google Ping OK)，使用 GitHub 源"
   UPDATE_URL="$GITHUB_URL"
 else
-  echo "⚠️ GitHub 网络较慢（${github_time}s ≥ ${THRESHOLD}s），切换 Gitee"
+  echo "🇨🇳 检测到国内环境 (Google Ping Failed)，切换 Gitee 源"
   UPDATE_URL="$GITEE_URL"
 fi
 
 echo "🚀 执行更新脚本：$UPDATE_URL"
 
-# 简化 Curl 调用，避免数组在 cat 写入时产生的解析歧义
-CURL_CMD="curl --silent --show-error --location --connect-timeout 5 --max-time 20 --retry 2"
+# 统一 Curl 下载参数
+# --connect-timeout 5: 连接超时
+# --max-time 30: 增加到 30 秒，确保脚本下载完整
+CURL_CMD="curl --silent --show-error --location --connect-timeout 5 --max-time 30 --retry 2"
 
 # 执行远程脚本
 if ! bash <($CURL_CMD "$UPDATE_URL") "$CONF_FILE"; then
@@ -247,7 +239,7 @@ fi
 EOF
 
   chmod +x "$RUNNER"
-  log "✅ 已生成 cron: $RUNNER"
+  log "✅ 已生成 cron 脚本: $RUNNER"
 }
 
 if [ ! -f "$ACME_INS" ]; then
