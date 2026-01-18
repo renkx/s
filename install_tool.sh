@@ -378,7 +378,7 @@ EOF
   # 由于在 Linux 的启动过程中，sysctl 参数设置发生在 nf_conntrack 模块加载之前，
   # 所以仅仅将nf_conntrack_max 等参数的配置写入 /etc/sysctl.conf 中并不能直接令其生效。这也是 sysctl 的一个已知问题
   # 想要解决这个问题，我们可以在 /etc/udev/rules.d 中创建一个 50-nf_conntrack.rules 文件，
-  # 然后添加以下 udev 规则，表示仅在 nf_conntrack 模块加载时才执行相应的参数设置：
+  # 然后添加以下 udev 规则，表示 一旦内核检测到 nf_conntrack 模块被添加（ACTION=="add"），立刻重新触发一次 sysctl 命令来刷新该模块相关的网络参数：
   cat >'/etc/udev/rules.d/50-nf_conntrack.rules' <<EOF
 ACTION=="add", SUBSYSTEM=="module", KERNEL=="nf_conntrack", RUN+="/usr/lib/systemd/systemd-sysctl --prefix=/net/netfilter"
 EOF
