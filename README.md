@@ -141,6 +141,12 @@ apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}'
 ## 会出现【nf_conntrack: nf_conntrack: table full, dropping packet】错误，用itdog一直发送tcping就会产生
 ## 执行生效命令：sysctl --system
 ## 原因：安装docker造成的，docker启动时会重写某些nf内核配置
+# 一条命令监控状态
+watch -n 1 "echo '--- Conntrack 实时状态 ---' && \
+count=\$(cat /proc/sys/net/netfilter/nf_conntrack_count) && \
+max=\$(cat /proc/sys/net/netfilter/nf_conntrack_max) && \
+buckets=\$(cat /sys/module/nf_conntrack/parameters/hashsize) && \
+awk -v c=\"\$count\" -v m=\"\$max\" -v b=\"\$buckets\" 'BEGIN { printf \"当前连接: %d\n最大限制: %d\n使用率: %.2f%%\n平均桶负载: %.2f\n\", c, m, (c/m)*100, c/b }'"
 #####
 
 ## debian 12之前，系统日志：/var/log/messages，之后为 journalctl -ef
