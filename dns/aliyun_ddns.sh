@@ -108,7 +108,7 @@ fi
 HAS_JQ=false
 if command -v jq >/dev/null 2>&1; then HAS_JQ=true; fi
 
-# url编码函数 (符合阿里云要求的 RFC3986 标准，改用纯Bash避免远程流执行冲突)
+# url编码函数 (符合阿里云要求的 RFC3986 标准)
 function fun_url_encode() {
     local string="${1}"
     local length="${#string}"
@@ -121,7 +121,7 @@ function fun_url_encode() {
     done
 }
 
-# 当前时间戳 (阿里云要求 ISO8601 格式)
+# 当前时间戳 (阿里云要求 ISO8601 格式，此处保持原始字符串，不要提前编码)
 var_now_timestamp=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
 
 # json转换函数 fun_parse_json "json" "key_name"
@@ -148,27 +148,28 @@ function fun_send_request() {
     local method="$1"
     local query_params="$3"
 
-    # 1. 对参数值进行URL编码并排序
+    # 核心修复点：在这里对参数进行统一编码，确保每个 value 只编码一次
     local -a encoded_params
     IFS='&' read -ra ADDR <<< "$query_params"
     for i in "${ADDR[@]}"; do
         local key="${i%%=*}"
         local value="${i#*=}"
+        # 只对 Value 部分进行 URL 编码
         encoded_params+=("$key=$(fun_url_encode "$value")")
     done
 
-    # 2. 构造规范化查询字符串
+    # 1. 构造规范化查询字符串 (按字典顺序排序)
     local canonicalized_query_string=$(printf "%s\n" "${encoded_params[@]}" | sort | tr '\n' '&' | sed 's/&$//')
 
-    # 3. 构造待签名字符串 (String-to-Sign)
+    # 2. 构造待签名字符串 (String-to-Sign)
     local string_to_sign="${method}&$(fun_url_encode "/")&$(fun_url_encode "$canonicalized_query_string")"
 
-    # 4. 计算签名 (HMAC-SHA1)
+    # 3. 计算签名 (HMAC-SHA1)
     local key="${var_access_key_secret}&"
     local signature=$(get_signature "sha1" "$string_to_sign" "$key")
     local signature_enc=$(fun_url_encode "$signature")
 
-    # 5. 最终请求地址 (增加超时控制)
+    # 4. 最终请求地址
     local request_url="${var_aliyun_ddns_api_host}/?${canonicalized_query_string}&Signature=${signature_enc}"
     curl -s4 -m 15 --connect-timeout 5 "$request_url"
 }
@@ -179,11 +180,13 @@ function fun_query_record_id_send() {
     fun_send_request "GET" "DescribeSubDomainRecords" "${query_params}"
 }
 
-# 更新域名解析记录值请求 fun_update_record "record_id"
+# 更新域名解析记录值请求
 function fun_update_record_send() {
     local query_params="AccessKeyId=$var_access_key_id&Action=UpdateDomainRecord&Format=json&Line=$var_domain_line&RR=$var_second_level_domain&RecordId=$1&SignatureMethod=HMAC-SHA1&SignatureNonce=$(fun_get_uuid)&SignatureVersion=1.0&TTL=$var_domain_ttl&Timestamp=$var_now_timestamp&Type=$var_domain_record_type&Value=$ip&Version=2015-01-09"
     fun_send_request "GET" "UpdateDomainRecord" "${query_params}"
 }
+
+# --- 执行逻辑 ---
 
 # 获取record_id
 response_query=$(fun_query_record_id_send)
