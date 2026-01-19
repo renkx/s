@@ -100,9 +100,14 @@ if command -v jq >/dev/null 2>&1; then HAS_JQ=true; fi
 # url编码函数 (符合阿里云要求的 RFC3986 标准)
 function fun_url_encode() {
     local string="${1}"
-    if [ -z "$string" ]; then echo -n ""; return; fi
-    # 修正：将数据直接传给 curl 而不是通过管道，避免某些环境下的 stdin 丢失
-    curl -s -o /dev/null -w %{url_effective} --get --data-urlencode "=$string" "" | cut -c 3-
+    # 如果字符串为空，直接输出空并返回
+    if [ -z "$string" ]; then
+        echo -n ""
+        return
+    fi
+    # 使用安全的参数传递方式，并明确指定编码逻辑
+    # 注意：这里改成了 "a=$string" 然后用 cut 删掉前面的 "a="，这是最兼容的写法
+    curl -s -o /dev/null -w %{url_effective} --get --data-urlencode "a=$string" "" | sed 's/.*a=//'
 }
 
 # 当前时间戳 (阿里云要求 ISO8601 格式)
