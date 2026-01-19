@@ -1,25 +1,28 @@
 name: Sync to Gitee
 
 on:
-  push:                # 当 GitHub 有代码提交时触发同步
+  push:
   schedule:
-    - cron: '0 22 * * *' # 每天北京时间早上 6 点自动执行 (UTC 22:00)
-  workflow_dispatch:   # 支持手动点击运行
+    # 每天北京时间早上 6 点自动执行 (UTC 22:00)
+    - cron: '0 22 * * *'
+  workflow_dispatch:
 
 jobs:
-  build:
+  mirror:
     runs-on: ubuntu-latest
     steps:
-      - name: Mirror the GitHub repos to Gitee
+      - name: Mirror with SSH
         uses: Yikun/gitee-mirror-action@master
         with:
-          # 你的 GitHub 用户名
-          src: github/your_github_username
-          # 你的 Gitee 用户名
-          dst: gitee/your_gitee_username
-          # 刚才在 Settings 里设置的变量名
-          dst_key: ${{ secrets.GITEE_RSA_PRIVATE_KEY }}
-          # 填入你想要同步的仓库名，多个用逗号隔开
+          # 来源端：github/你的GitHub用户名
+          src: github/renkx
+          # 目的端：gitee/你的Gitee用户名
+          dst: gitee/renkx
+          # SSH 私钥，确保已经在 Gitee 设置了对应的公钥
+          dst_key: ${{ secrets.GITEE_PRIVATE_KEY }}
+          # 填写你需要同步的三个仓库名，逗号隔开，不要有空格
           static_list: "ohmyzsh,zsh-autosuggestions,zsh-syntax-highlighting"
+          # 强制同步
           force_update: true
-          debug: true
+          # 关键点：如果你的仓库是公开的，设置 clone_style 为 https 或 ssh
+          clone_style: "ssh"
