@@ -161,12 +161,6 @@ optimizing_system() {
   fi
 }
 
-# 只能升级debian系统
-upgrading_system() {
-  # 升级内核
-  bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/upgrading_system.sh)
-}
-
 # 虚拟内存设置
 update_swap() {
   check_network_env

@@ -10,11 +10,6 @@ docker run -d --name speedtest --restart=unless-stopped -p 6688:80 renkx/html5-s
 yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_docker.sh)
 ```
 
-##### 安装docker-compose
-```shell
-yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_docker_compose.sh)
-```
-
 ##### 安装on-my-zsh
 ```shell
 yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/myzsh.sh)
