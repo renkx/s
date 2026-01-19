@@ -97,17 +97,17 @@ check_deps
 HAS_JQ=false
 if command -v jq >/dev/null 2>&1; then HAS_JQ=true; fi
 
-# url编码函数 (符合阿里云要求的 RFC3986 标准)
-function fun_url_encode() {
+# --- 纯 Bash 实现的 URL 编码 (解决远程执行报错的核心) ---
+fun_url_encode() {
     local string="${1}"
-    # 如果字符串为空，直接输出空并返回
-    if [ -z "$string" ]; then
-        echo -n ""
-        return
-    fi
-    # 使用安全的参数传递方式，并明确指定编码逻辑
-    # 注意：这里改成了 "a=$string" 然后用 cut 删掉前面的 "a="，这是最兼容的写法
-    curl -s -o /dev/null -w %{url_effective} --get --data-urlencode "a=$string" "" | sed 's/.*a=//'
+    local length="${#string}"
+    for (( i = 0; i < length; i++ )); do
+        local c="${string:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *) printf '%%%02X' "'$c" ;;
+        esac
+    done
 }
 
 # 当前时间戳 (阿里云要求 ISO8601 格式)
@@ -176,8 +176,7 @@ else
 fi
 
 if [ -z "${var_domain_record_id}" ]; then
-    msg="获取record_id失败，检查域名 $var_second_level_domain.$var_first_level_domain 是否存在"
-    log "$msg"
+    log "获取record_id失败，检查域名 $var_second_level_domain.$var_first_level_domain 是否存在。API响应: $response_query"
     exit 1
 fi
 
