@@ -60,7 +60,6 @@ fi
 
 # --- 获取域名信息 (Zone ID / Record ID / Cloud IP) ---
 # 注意：即使有缓存，我们每次也要请求一次以确认云端当前的 content (IP)
-log "正在获取 Cloudflare 云端记录信息..."
 
 # 1. 获取 Zone ID (如果没缓存)
 if [ -f "$id_file" ]; then
@@ -103,7 +102,7 @@ fi
 
 # --- 核心判断：对比当前 IP 与云端 IP ---
 if [ "$ip" == "$current_cloud_ip" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] - IP has not changed (Cloud: $current_cloud_ip). Skip."
+    log "IP has not changed (Cloud: $current_cloud_ip). Skip."
     exit 0
 fi
 

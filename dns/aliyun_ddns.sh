@@ -37,8 +37,8 @@ get_ip() {
 if [ "$6" ]; then ip=$6; else ip=$(get_ip); fi
 
 # 文件路径
-log_file=~/aliyun_ddns_ali_${var_second_level_domain}.log
-lock_file=/tmp/ali_ddns_${var_second_level_domain}.lock
+log_file=~/aliyun_ddns_ali_${var_second_level_domain}_${var_first_level_domain}.log
+lock_file=/tmp/ali_ddns_${var_second_level_domain}_${var_first_level_domain}.lock
 
 # 终端可见 + 写日志
 log() {
@@ -132,7 +132,7 @@ fi
 
 # 对比云端 IP 与 当前 IP
 if [ "$ip" == "$var_current_ali_ip" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] - IP has not changed (Cloud: $var_current_ali_ip). Skip update."
+    log "IP has not changed (Cloud: $var_current_ali_ip). Skip update."
     exit 0
 fi
 
