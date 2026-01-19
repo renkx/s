@@ -98,63 +98,6 @@ _exists() {
     return ${rt}
 }
 
-# 检查虚拟化类型
-check_virt() {
-    _exists "dmesg" && virtualx="$(dmesg 2>/dev/null)"
-    if _exists "dmidecode"; then
-        sys_manu="$(dmidecode -s system-manufacturer 2>/dev/null)"
-        sys_product="$(dmidecode -s system-product-name 2>/dev/null)"
-        sys_ver="$(dmidecode -s system-version 2>/dev/null)"
-    else
-        sys_manu=""
-        sys_product=""
-        sys_ver=""
-    fi
-    if grep -qa docker /proc/1/cgroup; then
-        virt="Docker"
-    elif grep -qa lxc /proc/1/cgroup; then
-        virt="LXC"
-    elif grep -qa container=lxc /proc/1/environ; then
-        virt="LXC"
-    elif [[ -f /proc/user_beancounters ]]; then
-        virt="OpenVZ"
-    elif [[ "${virtualx}" == *kvm-clock* ]]; then
-        virt="KVM"
-    elif [[ "${sys_product}" == *KVM* ]]; then
-        virt="KVM"
-    elif [[ "${cname}" == *KVM* ]]; then
-        virt="KVM"
-    elif [[ "${cname}" == *QEMU* ]]; then
-        virt="KVM"
-    elif [[ "${virtualx}" == *"VMware Virtual Platform"* ]]; then
-        virt="VMware"
-    elif [[ "${sys_product}" == *"VMware Virtual Platform"* ]]; then
-        virt="VMware"
-    elif [[ "${virtualx}" == *"Parallels Software International"* ]]; then
-        virt="Parallels"
-    elif [[ "${virtualx}" == *VirtualBox* ]]; then
-        virt="VirtualBox"
-    elif [[ -e /proc/xen ]]; then
-        if grep -q "control_d" "/proc/xen/capabilities" 2>/dev/null; then
-            virt="Xen-Dom0"
-        else
-            virt="Xen-DomU"
-        fi
-    elif [ -f "/sys/hypervisor/type" ] && grep -q "xen" "/sys/hypervisor/type"; then
-        virt="Xen"
-    elif [[ "${sys_manu}" == *"Microsoft Corporation"* ]]; then
-        if [[ "${sys_product}" == *"Virtual Machine"* ]]; then
-            if [[ "${sys_ver}" == *"7.0"* || "${sys_ver}" == *"Hyper-V" ]]; then
-                virt="Hyper-V"
-            else
-                virt="Microsoft Virtual Machine"
-            fi
-        fi
-    else
-        virt="Dedicated"
-    fi
-}
-
 install_base() {
   check_network_env
 
@@ -249,187 +192,81 @@ EOF
   judge "设置 nameserver 并 chattr +i /etc/resolv.conf 加锁"
 }
 
+# 获取操作系统名称
 get_opsy() {
-  if [ -f /etc/os-release ]; then
-    awk -F'[= "]' '/PRETTY_NAME/{print $3,$4,$5}' /etc/os-release
-  elif [ -f /etc/lsb-release ]; then
-    awk -F'[="]+' '/DESCRIPTION/{print $2}' /etc/lsb-release
-  elif [ -f /etc/system-release ]; then
-    cat /etc/system-release | awk '{print $1,$2}'
-  fi
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release && echo "$PRETTY_NAME"
+    elif [ -f /etc/system-release ]; then
+        head -n1 /etc/system-release
+    else
+        echo "Unknown OS"
+    fi
 }
 
-get_system_info() {
-  opsy=$(get_opsy)
-  arch=$(uname -m)
-  kern=$(uname -r)
-  virt_check
-}
-
-# from LemonBench
+# 检查虚拟化环境
 virt_check() {
   if [ -f "/usr/bin/systemd-detect-virt" ]; then
-    Var_VirtType="$(/usr/bin/systemd-detect-virt)"
-    # 虚拟机检测
-    if [ "${Var_VirtType}" = "qemu" ]; then
-      virtual="QEMU"
-    elif [ "${Var_VirtType}" = "kvm" ]; then
-      virtual="KVM"
-    elif [ "${Var_VirtType}" = "zvm" ]; then
-      virtual="S390 Z/VM"
-    elif [ "${Var_VirtType}" = "vmware" ]; then
-      virtual="VMware"
-    elif [ "${Var_VirtType}" = "microsoft" ]; then
-      virtual="Microsoft Hyper-V"
-    elif [ "${Var_VirtType}" = "xen" ]; then
-      virtual="Xen Hypervisor"
-    elif [ "${Var_VirtType}" = "bochs" ]; then
-      virtual="BOCHS"
-    elif [ "${Var_VirtType}" = "uml" ]; then
-      virtual="User-mode Linux"
-    elif [ "${Var_VirtType}" = "parallels" ]; then
-      virtual="Parallels"
-    elif [ "${Var_VirtType}" = "bhyve" ]; then
-      virtual="FreeBSD Hypervisor"
-    # 容器虚拟化检测
-    elif [ "${Var_VirtType}" = "openvz" ]; then
-      virtual="OpenVZ"
-    elif [ "${Var_VirtType}" = "lxc" ]; then
-      virtual="LXC"
-    elif [ "${Var_VirtType}" = "lxc-libvirt" ]; then
-      virtual="LXC (libvirt)"
-    elif [ "${Var_VirtType}" = "systemd-nspawn" ]; then
-      virtual="Systemd nspawn"
-    elif [ "${Var_VirtType}" = "docker" ]; then
-      virtual="Docker"
-    elif [ "${Var_VirtType}" = "rkt" ]; then
-      virtual="RKT"
-    # 特殊处理
-    elif [ -c "/dev/lxss" ]; then # 处理WSL虚拟化
-      Var_VirtType="wsl"
-      virtual="Windows Subsystem for Linux (WSL)"
-    # 未匹配到任何结果, 或者非虚拟机
-    elif [ "${Var_VirtType}" = "none" ]; then
-      Var_VirtType="dedicated"
-      virtual="None"
-      local Var_BIOSVendor
-      Var_BIOSVendor="$(dmidecode -s bios-vendor)"
-      if [ "${Var_BIOSVendor}" = "SeaBIOS" ]; then
-        Var_VirtType="Unknown"
-        virtual="Unknown with SeaBIOS BIOS"
-      else
-        Var_VirtType="dedicated"
-        virtual="Dedicated with ${Var_BIOSVendor} BIOS"
-      fi
-    fi
-  elif [ ! -f "/usr/sbin/virt-what" ]; then
-    Var_VirtType="Unknown"
-    virtual="[Error: virt-what not found !]"
-  elif [ -f "/.dockerenv" ]; then # 处理Docker虚拟化
-    Var_VirtType="docker"
-    virtual="Docker"
-  elif [ -c "/dev/lxss" ]; then # 处理WSL虚拟化
-    Var_VirtType="wsl"
-    virtual="Windows Subsystem for Linux (WSL)"
-  else # 正常判断流程
-    Var_VirtType="$(virt-what | xargs)"
-    local Var_VirtTypeCount
-    Var_VirtTypeCount="$(echo $Var_VirtTypeCount | wc -l)"
-    if [ "${Var_VirtTypeCount}" -gt "1" ]; then # 处理嵌套虚拟化
-      virtual="echo ${Var_VirtType}"
-      Var_VirtType="$(echo ${Var_VirtType} | head -n1)"                          # 使用检测到的第一种虚拟化继续做判断
-    elif [ "${Var_VirtTypeCount}" -eq "1" ] && [ "${Var_VirtType}" != "" ]; then # 只有一种虚拟化
-      virtual="${Var_VirtType}"
-    else
-      local Var_BIOSVendor
-      Var_BIOSVendor="$(dmidecode -s bios-vendor)"
-      if [ "${Var_BIOSVendor}" = "SeaBIOS" ]; then
-        Var_VirtType="Unknown"
-        virtual="Unknown with SeaBIOS BIOS"
-      else
-        Var_VirtType="dedicated"
-        virtual="Dedicated with ${Var_BIOSVendor} BIOS"
-      fi
-    fi
+      Var_VirtType=$(/usr/bin/systemd-detect-virt 2>/dev/null)
+  else
+      Var_VirtType=$(virt-what 2>/dev/null | tail -n1)
   fi
+
+  case "${Var_VirtType:-none}" in
+      qemu)           virtual="QEMU" ;;
+      kvm)            virtual="KVM" ;;
+      vmware)         virtual="VMware" ;;
+      microsoft)      virtual="Hyper-V" ;;
+      openvz)         virtual="OpenVZ" ;;
+      lxc*)           virtual="LXC" ;;
+      docker)         virtual="Docker" ;;
+      wsl)            virtual="WSL" ;;
+      none)           virtual="Dedicated" ;;
+      *)              virtual="Unknown" ;;
+  esac
 }
 
-# 检查系统当前状态
+# 检查内核与加速状态
 check_status() {
-  kernel_version=$(uname -r | awk -F "-" '{print $1}')
-  kernel_version_full=$(uname -r)
-  net_congestion_control=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
-  net_qdisc=$(cat /proc/sys/net/core/default_qdisc | awk '{print $1}')
-  if [[ ${kernel_version_full} == *bbrplus* ]]; then
-    kernel_status="BBRplus"
-  elif [[ ${kernel_version_full} == *4.9.0-4* || ${kernel_version_full} == *4.15.0-30* || ${kernel_version_full} == *4.8.0-36* || ${kernel_version_full} == *3.16.0-77* || ${kernel_version_full} == *3.16.0-4* || ${kernel_version_full} == *3.2.0-4* || ${kernel_version_full} == *4.11.2-1* || ${kernel_version_full} == *2.6.32-504* || ${kernel_version_full} == *4.4.0-47* || ${kernel_version_full} == *3.13.0-29 || ${kernel_version_full} == *4.4.0-47* ]]; then
-    kernel_status="Lotserver"
-  elif [[ $(echo ${kernel_version} | awk -F'.' '{print $1}') == "4" ]] && [[ $(echo ${kernel_version} | awk -F'.' '{print $2}') -ge 9 ]] || [[ $(echo ${kernel_version} | awk -F'.' '{print $1}') == "5" ]] || [[ $(echo ${kernel_version} | awk -F'.' '{print $1}') == "6" ]]; then
-    kernel_status="BBR"
+  # 基础信息
+  opsy=$(get_opsy)
+  virt_check
+  kern=$(uname -r)
+  arch=$(uname -m)
+  net_congestion_control=$(sysctl -n net.ipv4.tcp_congestion_control)
+  net_qdisc=$(sysctl -n net.core.default_qdisc)
+
+  # 1. 内核类型判定
+  if [[ "$kern" == *bbrplus* ]]; then
+      kernel_status="BBRplus"
+  elif [[ "$kern" =~ (4\.9\.0-4|4\.15\.0-30|4\.8\.0-36|3\.16\.0-77|2\.6\.32-504) ]]; then
+      kernel_status="Lotserver"
+  elif [[ $(echo "${kern%%-*}" | awk -F. '{if($1>4 || ($1==4 && $2>=9)) print "yes"}') == "yes" ]]; then
+      kernel_status="BBR"
   else
-    kernel_status="noinstall"
+      kernel_status="noinstall"
   fi
 
-  if [[ ${kernel_status} == "BBR" ]]; then
-    run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
-    if [[ ${run_status} == "bbr" ]]; then
-      run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
-      if [[ ${run_status} == "bbr" ]]; then
-        run_status="BBR启动成功"
-      else
-        run_status="BBR启动失败"
-      fi
-    elif [[ ${run_status} == "bbr2" ]]; then
-      run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
-      if [[ ${run_status} == "bbr2" ]]; then
-        run_status="BBR2启动成功"
-      else
-        run_status="BBR2启动失败"
-      fi
-    elif [[ ${run_status} == "tsunami" ]]; then
-      run_status=$(lsmod | grep "tsunami" | awk '{print $1}')
-      if [[ ${run_status} == "tcp_tsunami" ]]; then
-        run_status="BBR魔改版启动成功"
-      else
-        run_status="BBR魔改版启动失败"
-      fi
-    elif [[ ${run_status} == "nanqinlang" ]]; then
-      run_status=$(lsmod | grep "nanqinlang" | awk '{print $1}')
-      if [[ ${run_status} == "tcp_nanqinlang" ]]; then
-        run_status="暴力BBR魔改版启动成功"
-      else
-        run_status="暴力BBR魔改版启动失败"
-      fi
-    else
-      run_status="未安装加速模块"
-    fi
-
-  elif [[ ${kernel_status} == "Lotserver" ]]; then
-    if [[ -e /appex/bin/lotServer.sh ]]; then
-      run_status=$(bash /appex/bin/lotServer.sh status | grep "LotServer" | awk '{print $3}')
-      if [[ ${run_status} == "running!" ]]; then
-        run_status="启动成功"
-      else
-        run_status="启动失败"
-      fi
-    else
-      run_status="未安装加速模块"
-    fi
-  elif [[ ${kernel_status} == "BBRplus" ]]; then
-    run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
-    if [[ ${run_status} == "bbrplus" ]]; then
-      run_status=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
-      if [[ ${run_status} == "bbrplus" ]]; then
-        run_status="BBRplus启动成功"
-      else
-        run_status="BBRplus启动失败"
-      fi
-    elif [[ ${run_status} == "bbr" ]]; then
-      run_status="BBR启动成功"
-    else
-      run_status="未安装加速模块"
-    fi
-  fi
+  # 2. 运行状态判定 (通过 case 简化)
+  case "$kernel_status" in
+      "BBR"|"BBRplus")
+          # 检查当前算法是否匹配内核类型，或者是否为常见的 bbr 变体
+          if [[ "$net_congestion_control" =~ (bbr|bbrplus|bbr2|tsunami|nanqinlang) ]]; then
+              run_status="${net_congestion_control} 启动成功"
+          else
+              run_status="插件未启动"
+          fi
+          ;;
+      "Lotserver")
+          if [ -f "/appex/bin/lotServer.sh" ]; then
+              /appex/bin/lotServer.sh status | grep -q "running!" && run_status="启动成功" || run_status="启动失败"
+          else
+              run_status="未安装加速模块"
+          fi
+          ;;
+      *)
+          run_status="未安装加速模块"
+          ;;
+  esac
 }
 
 # 更新motd
@@ -932,14 +769,15 @@ menu() {
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
-    get_system_info
+
     echo -e " 系统信息: $opsy ${Green}$virtual${Font} $arch ${Green}$kern${Font} "
 
-    if [[ ${kernel_status} == "noinstall" ]]; then
-      echo -e " 当前状态: 未安装 加速内核 请先安装内核"
+    if [[ "${kernel_status}" == "noinstall" ]]; then
+        echo -e " 当前状态: ${Red}未安装${Font} 加速内核 请先安装内核"
     else
-      echo -e " 当前状态: ${Green}已安装${Font} ${Red}${kernel_status}${Font} 加速内核 , ${Green}${run_status}${Font}"
+        echo -e " 当前状态: ${Green}已安装${Font} ${Red}${kernel_status}${Font} 加速内核 , ${Green}${run_status}${Font}"
     fi
+
     echo -e " 当前拥塞控制算法为: ${Green}${net_congestion_control}${Font} 当前队列算法为: ${Green}${net_qdisc}${Font} "
 
     read -rp " 请输入数字：" menu_num
