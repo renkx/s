@@ -74,6 +74,7 @@ fi
 if [ -f "$ip_file" ]; then
     old_ip=$(cat "$ip_file")
     if [ "$ip" == "$old_ip" ]; then
+        echo "IP has not changed."
         exit 0
     fi
 fi

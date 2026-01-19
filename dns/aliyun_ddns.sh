@@ -69,7 +69,7 @@ fi
 if [ -f $ip_file ]; then
     old_ip=$(cat $ip_file)
     if [ "$old_ip" ] && [ "$ip" == "$old_ip" ]; then
-        log "IP has not changed."
+        echo "IP has not changed."
         exit 0
     fi
 fi
@@ -113,7 +113,9 @@ function fun_send_request() {
     local string_to_sign=$(get_signature "sha1" "$message" "$key")
     local signature=$(fun_url_encode "$string_to_sign")
     local request_url="$var_aliyun_ddns_api_host/?$args&Signature=$signature"
-    curl -s ${request_url}
+
+    # 增加超时处理：连接限制 5 秒，总限时 15 秒
+    curl -s4 -m 15 --connect-timeout 5 "${request_url}"
 }
 
 function fun_query_record_id_send() {
