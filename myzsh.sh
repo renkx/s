@@ -94,6 +94,10 @@ check_network_env() {
 }
 
 edit_zshrc() {
+  if [ -f "${zshrc_file}" ]; then
+      cp "${zshrc_file}" "${zshrc_file}.bak.$(date +%Y%m%d%H%M%S)"
+      echo_info "已备份旧的 .zshrc 到 ${zshrc_file}.bak"
+  fi
   touch ${zshrc_file}
   cat >${zshrc_file} <<'EOF'
 # 解决zsh:no matches found问题
@@ -103,7 +107,7 @@ source /etc/profile
 
 export ZSH="$HOME/.oh-my-zsh"
 
-ZSH_THEME="ys"
+ZSH_THEME="Powerlevel10k"
 
 # disable automatic updates
 zstyle ':omz:update' mode disabled
@@ -182,5 +186,8 @@ fi
 # 编辑替换主题
 edit_zshrc
 # 设置默认shell
-chsh -s /bin/zsh
+ZSH_PATH=$(command -v zsh)
+chsh -s "$ZSH_PATH"
 judge "更改默认shell为zsh"
+# 直接带用户进入美化后的新终端
+exec zsh -l
