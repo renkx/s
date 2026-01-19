@@ -148,28 +148,32 @@ function fun_send_request() {
     local method="$1"
     local query_params="$3"
 
-    # 核心修复点：在这里对参数进行统一编码，确保每个 value 只编码一次
-    local -a encoded_params
-    IFS='&' read -ra ADDR <<< "$query_params"
+    # --- 步骤 1: 参数排序并编码 Value ---
+    # 先将参数按 Key 排序，这是阿里云签名的前提
+    local sorted_params=$(echo -n "$query_params" | tr '&' '\n' | sort | tr '\n' '&' | sed 's/&$//')
+
+    local canonicalized_query_string=""
+    IFS='&' read -ra ADDR <<< "$sorted_params"
     for i in "${ADDR[@]}"; do
         local key="${i%%=*}"
         local value="${i#*=}"
-        # 只对 Value 部分进行 URL 编码
-        encoded_params+=("$key=$(fun_url_encode "$value")")
+        # 逐个对 Value 进行编码
+        local en_val=$(fun_url_encode "$value")
+        canonicalized_query_string="${canonicalized_query_string}&${key}=${en_val}"
     done
+    canonicalized_query_string=${canonicalized_query_string#&} # 去掉开头的 &
 
-    # 1. 构造规范化查询字符串 (按字典顺序排序)
-    local canonicalized_query_string=$(printf "%s\n" "${encoded_params[@]}" | sort | tr '\n' '&' | sed 's/&$//')
-
-    # 2. 构造待签名字符串 (String-to-Sign)
+    # --- 步骤 2: 构造待签名字符串 (String-to-Sign) ---
+    # 核心修正：这里必须手动拼接，不能直接对整个 canonicalized_query_string 再次调用 fun_url_encode
+    # 因为内部的 = 和 & 不能被重复编码
     local string_to_sign="${method}&$(fun_url_encode "/")&$(fun_url_encode "$canonicalized_query_string")"
 
-    # 3. 计算签名 (HMAC-SHA1)
+    # --- 步骤 3: 计算签名 ---
     local key="${var_access_key_secret}&"
     local signature=$(get_signature "sha1" "$string_to_sign" "$key")
     local signature_enc=$(fun_url_encode "$signature")
 
-    # 4. 最终请求地址
+    # --- 步骤 4: 发送最终请求 ---
     local request_url="${var_aliyun_ddns_api_host}/?${canonicalized_query_string}&Signature=${signature_enc}"
     curl -s4 -m 15 --connect-timeout 5 "$request_url"
 }
