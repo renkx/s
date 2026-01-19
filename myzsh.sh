@@ -2,6 +2,9 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
+# 兼容性处理：确定操作系统类型
+OS_TYPE=$(uname -s)
+
 cd "$(
     cd "$(dirname "$0")" || exit
     pwd
@@ -48,7 +51,10 @@ judge() {
   fi
 }
 
-source '/etc/os-release'
+# 只有 Linux 才有 /etc/os-release
+if [[ "$OS_TYPE" == "Linux" ]]; then
+    source '/etc/os-release'
+fi
 
 zshrc_file=~/.zshrc
 ZSH=~/.oh-my-zsh
@@ -103,7 +109,8 @@ edit_zshrc() {
 # 解决zsh:no matches found问题
 setopt no_nomatch
 # zsh其实并不使用/etc/profile文件，而是使用/etc/zsh/下面的zshenv、zprofile、zshrc、zlogin文件，并以这个顺序进行加载
-source /etc/profile
+# Linux 兼容
+[ -f /etc/profile ] && source /etc/profile
 
 export ZSH="$HOME/.oh-my-zsh"
 
@@ -112,7 +119,7 @@ ZSH_THEME="ys"
 # disable automatic updates
 zstyle ':omz:update' mode disabled
 
-plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -141,17 +148,19 @@ EOF
 }
 
 command_exists git || {
-  echo_error "git is not installed"
+  echo_error "未检测到 git，macOS 请先运行 xcode-select --install"
   exit 1
 }
 
+# 检查并安装 zsh
 if ! command_exists zsh; then
-  if [[ "${ID}" == "centos" ]]; then
+  if [[ "$OS_TYPE" == "Darwin" ]]; then
+    echo_error "macOS 默认自带 zsh，如果丢失请手动修复"
+    exit 1
+  elif [[ "${ID}" == "centos" ]]; then
     yum -y install zsh
-  elif [[ "${ID}" == "debian" ]]; then
+  elif [[ "${ID}" == "debian" || "${ID}" == "ubuntu" ]]; then
     apt-get -y install zsh
-  elif [[ "${ID}" == "ubuntu" ]]; then
-    apt -y install zsh
   else
     echo_error "不支持此系统"
     exit 1
@@ -162,30 +171,47 @@ fi
 check_network_env
 
 if [ -d "$ZSH" ]; then
-  echo_info "文件夹已存在 ($ZSH)"
-  rm -rf ${ZSH}
-  judge "删除文件夹 ($ZSH)"
+  echo_info "文件夹已存在 ($ZSH)，正在重新安装..."
+  rm -rf "${ZSH}"
 fi
 
 if [[ "$IsGlobal" == "1" ]];then
-
-  echo_info "git拉取【国外】ohmyzsh ... ($ZSH)"
+  echo_info "git拉取【国外】源 ..."
   git clone https://github.com/ohmyzsh/ohmyzsh.git ${ZSH}
   # 自动补全
   git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions.git ${ZSH}/custom/plugins/zsh-autosuggestions
   # 高亮
   git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH}/custom/plugins/zsh-syntax-highlighting
+  # 历史记录搜索
+  git clone --depth=1 https://github.com/zsh-users/zsh-history-substring-search ${ZSH}/custom/plugins/zsh-history-substring
 else
-
-  echo_info "git拉取【国内】ohmyzsh ... ($ZSH)"
+  echo_info "git拉取【国内】源 ..."
   git clone https://gitee.com/renkx/ohmyzsh.git ${ZSH}
   git clone --depth=1 https://gitee.com/renkx/zsh-autosuggestions.git ${ZSH}/custom/plugins/zsh-autosuggestions
   git clone --depth=1 https://gitee.com/renkx/zsh-syntax-highlighting.git ${ZSH}/custom/plugins/zsh-syntax-highlighting
+  git clone --depth=1 https://gitee.com/renkx/zsh-history-substring-search ${ZSH}/custom/plugins/zsh-history-substring
 fi
 
 # 编辑替换主题
 edit_zshrc
-# 设置默认shell
+
+# 设置默认 shell
 ZSH_PATH=$(command -v zsh)
-chsh -s "$ZSH_PATH"
+
+# 针对 macOS 的安全性检查
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+    # 检查 zsh 路径是否在 shells 白名单中
+    if ! grep -q "$ZSH_PATH" /etc/shells; then
+        echo_info "正在将 $ZSH_PATH 添加到 /etc/shells 安全列表..."
+        # 这一步需要 sudo 权限
+        echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
+    fi
+fi
+
+if [[ "$SHELL" != "$ZSH_PATH" ]]; then
+    echo_info "正在更改默认 shell 为 zsh..."
+    chsh -s "$ZSH_PATH"
+    judge "更改默认 shell"
+fi
+
 judge "更改默认shell为zsh"
