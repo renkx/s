@@ -42,17 +42,17 @@ curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && ch
 [ -f ~/ag/conf/default/docker.env ] && ln -sf ~/ag/conf/default/docker.env ~/ag/.env
 
 ## acme命令动态配置域名证书
-bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf
-bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh) ~/ag/conf/default/acme.conf
+curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh | bash -s -- ~/ag/conf/default/acme.conf
+curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh | bash -s -- ~/ag/conf/default/acme.conf
 
 # TCP加速 内核升级
 bash <(curl -sSL https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcpx.sh)
 
 ## 程序安装 github
-bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_tool.sh)
+curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_tool.sh | bash -s --
 
 ## 程序安装 gitee
-bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_tool.sh)
+curl -sSL https://gitee.com/renkx/ss/raw/main/install_tool.sh | bash -s --
 ```
 
 ##### iptablesUtils [github](https://github.com/arloor/iptablesUtils)
