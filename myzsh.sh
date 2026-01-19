@@ -189,5 +189,3 @@ edit_zshrc
 ZSH_PATH=$(command -v zsh)
 chsh -s "$ZSH_PATH"
 judge "更改默认shell为zsh"
-# 直接带用户进入美化后的新终端
-exec zsh -l
