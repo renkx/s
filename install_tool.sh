@@ -55,20 +55,34 @@ VERSION=$(echo "${VERSION}" | awk -F "[()]" '{print $2}')
 
 # 检测网络
 check_network_env() {
-  # 1. 缓存检查：如果 IsGlobal 已定义，直接退出函数
   [ -n "${IsGlobal:-}" ] && return
 
-  echo_info "🔍 正在分析网络路由..."
+  echo_info "🔍 正在分析网络路由 (内容校验模式)..."
 
-  # 3. 核心探测逻辑
-  # 使用 -c 2 发送两个包比一个包更稳，防止偶发性的第一个包丢包（丢包在跨境网络很常见）
-  # -w 3 给总时间 3 秒上限，比 -W 更强制
-  if ping -4 -c 2 -w 3 www.google.com >/dev/null 2>&1; then
+  # 1. 核心判断：使用 Google 204 服务进行内容校验
+  # -L: 跟踪重定向 (防止某些机房劫持到自己的登录页)
+  # -w %{http_code}: 只输出 HTTP 状态码
+  # --connect-timeout 2: 尝试建立连接的最长等待时间
+  # -m 4: 整个请求（包括下载数据）的总限时
+  local check_code
+  check_code=$(curl -sL -k --connect-timeout 2 -m 4 -w "%{http_code}" "https://www.google.com/generate_204" -o /dev/null 2>/dev/null)
+
+  if [ "$check_code" = "204" ]; then
     ENV_TIP="🌍 海外 (Global)"
     IsGlobal=1
   else
-    ENV_TIP="🇨🇳 国内 (Mainland China)"
-    IsGlobal=0
+    # 2. 如果 Google 不通，尝试国内高可靠地址确认是否断网
+    # 阿里或百度的 HTTPS 服务在国内是绝对稳定的
+    local cn_code
+    cn_code=$(curl -sL -k --connect-timeout 2 -m 3 -w "%{http_code}" "https://www.baidu.com" -o /dev/null 2>/dev/null)
+
+    if [ "$cn_code" = "200" ]; then
+      ENV_TIP="🇨🇳 国内 (Mainland China)"
+      IsGlobal=0
+    else
+      ENV_TIP="🚫 网络连接异常"
+      IsGlobal=0
+    fi
   fi
 
   export IsGlobal
