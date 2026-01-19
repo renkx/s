@@ -37,7 +37,6 @@ get_ip() {
 if [ "$6" ]; then ip=$6; else ip=$(get_ip); fi
 
 # 文件路径
-ip_file=~/aliyun_ddns_ip_${var_second_level_domain}.txt
 log_file=~/aliyun_ddns_ali_${var_second_level_domain}.log
 lock_file=/tmp/ali_ddns_${var_second_level_domain}.lock
 
@@ -63,15 +62,6 @@ if [[ -f $log_file ]]; then
       log "日志文件过大，执行轮转..."
       mv "$log_file" "${log_file}.old"
   fi
-fi
-
-# 检查 IP 变化
-if [ -f $ip_file ]; then
-    old_ip=$(cat $ip_file)
-    if [ "$old_ip" ] && [ "$ip" == "$old_ip" ]; then
-        echo "IP has not changed."
-        exit 0
-    fi
 fi
 
 # 检查依赖
@@ -106,7 +96,7 @@ function fun_url_encode() {
 }
 
 function fun_send_request() {
-    local args="$3"
+    local args="$2"
     # 这里保持原版的加密逻辑
     local message="$1&$(fun_url_encode "/")&$(fun_url_encode "$args")"
     local key="$var_access_key_secret&"
@@ -120,37 +110,41 @@ function fun_send_request() {
 
 function fun_query_record_id_send() {
     local query_url="AccessKeyId=$var_access_key_id&Action=DescribeSubDomainRecords&DomainName=$var_first_level_domain&Format=json&SignatureMethod=HMAC-SHA1&SignatureNonce=$(fun_get_uuid)&SignatureVersion=1.0&SubDomain=$var_second_level_domain.$var_first_level_domain&Timestamp=$var_now_timestamp&Version=2015-01-09"
-    fun_send_request "GET" "DescribeSubDomainRecords" "${query_url}"
+    fun_send_request "GET" "${query_url}"
 }
 
 function fun_update_record_send() {
     local query_url="AccessKeyId=$var_access_key_id&Action=UpdateDomainRecord&Format=json&Line=$var_domain_line&RR=$var_second_level_domain&RecordId=$1&SignatureMethod=HMAC-SHA1&SignatureNonce=$(fun_get_uuid)&SignatureVersion=1.0&TTL=$var_domain_ttl&Timestamp=$var_now_timestamp&Type=$var_domain_record_type&Value=$ip&Version=2015-01-09"
-    fun_send_request "GET" "UpdateDomainRecord" "${query_url}"
+    fun_send_request "GET" "${query_url}"
 }
 
 # --- 执行逻辑 ---
-var_domain_record_id=$(fun_query_record_id_send | grep -Eo '"RecordId":"[0-9]+"' | cut -d':' -f2 | tr -d '"')
+# 向云端查询当前记录
+response_query=$(fun_query_record_id_send)
+var_domain_record_id=$(echo "$response_query" | grep -Eo '"RecordId":"[0-9]+"' | cut -d':' -f2 | tr -d '"')
+# 当前云端IP
+var_current_ali_ip=$(echo "$response_query" | grep -Eo '"Value":"[0-9.]+"' | cut -d':' -f2 | tr -d '"' | head -n1)
 
 if [[ "${var_domain_record_id}" = "" ]]; then
-    log "获取record_id为空"
+    log "获取record_id失败，请检查域名记录是否存在。响应: $response_query"
     exit 1
 fi
 
-response=$(fun_update_record_send ${var_domain_record_id})
-code=$(fun_parse_json "$response" "Code")
-message=$(fun_parse_json "$response" "Message")
+# 对比云端 IP 与 当前 IP
+if [ "$ip" == "$var_current_ali_ip" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] - IP has not changed (Cloud: $var_current_ali_ip). Skip update."
+    exit 0
+fi
 
-if [[ "$code" = "" ]]; then
-    echo "$ip" > $ip_file
-    log "IP changed to: $ip"
+# 只有不一致时才执行更新
+response_update=$(fun_update_record_send ${var_domain_record_id})
+code=$(fun_parse_json "$response_update" "Code")
+message=$(fun_parse_json "$response_update" "Message")
+
+if [[ "$code" = "" || "$code" == "null" ]]; then
+    log "IP updated from $var_current_ali_ip to $ip"
     exit 0
 else
-    if [[ "$code" = "DomainRecordDuplicate" ]]; then
-      echo "$ip" > $ip_file
-      log "domain record duplicate: $ip"
-      exit 0
-    else
-      log "error code：$code error message：$message"
-      exit 1
-    fi
+    log "error code：$code error message：$message"
+    exit 1
 fi
