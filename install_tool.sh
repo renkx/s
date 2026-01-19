@@ -794,7 +794,7 @@ menu() {
 
     echo -e " 当前拥塞控制算法为: ${Green}${net_congestion_control}${Font} 当前队列算法为: ${Green}${net_qdisc}${Font} "
 
-    read -rp " 请输入数字：" menu_num
+    read -rp " 请输入数字：" menu_num < /dev/tty
     action_logic "$menu_num"
 }
 
@@ -810,6 +810,6 @@ else
         # 如果没有 exit，则在 menu 执行完后回到这里继续下一次循环
         # 增加一个简单的暂停，方便用户看清上一个命令的结果
         echo -e "\n${Info} 按任意键回到菜单..."
-        read -n 1
+        read -n 1 < /dev/tty
     done
 fi
