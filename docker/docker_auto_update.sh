@@ -139,15 +139,49 @@ for dir in "${COMPOSE_DIRS[@]}"; do
   VALID_COMPOSE_DIRS+=("$dir")
 done
 
-# 环境判断：利用 Google 判断国内外
-# -4: 强制 IPv4
-# -c 2: 发送 2 个包
-# -w 2: 整个 ping 命令限时 2 秒
-if ping -4 -c 2 -w 2 www.google.com >/dev/null 2>&1; then
-  echo "🌍 检测到海外环境 (Google Ping OK)，使用 GitHub 源"
+# 检测网络
+check_network_env() {
+  [ -n "${IsGlobal:-}" ] && return
+
+  echo "🔍 正在分析网络路由 ..."
+
+  # 1. 核心判断：使用 Google 204 服务进行内容校验
+  # -L: 跟踪重定向 (防止某些机房劫持到自己的登录页)
+  # -w %{http_code}: 只输出 HTTP 状态码
+  # --connect-timeout 2: 尝试建立连接的最长等待时间
+  # -m 4: 整个请求（包括下载数据）的总限时
+  local check_code
+  check_code=$(curl -sL -k --connect-timeout 2 -m 4 -w "%{http_code}" "https://www.google.com/generate_204" -o /dev/null 2>/dev/null)
+
+  if [ "$check_code" = "204" ]; then
+    ENV_TIP="🌍 海外 (Global)"
+    IsGlobal=1
+  else
+    # 2. 如果 Google 不通，尝试国内高可靠地址确认是否断网
+    # 阿里或百度的 HTTPS 服务在国内是绝对稳定的
+    local cn_code
+    cn_code=$(curl -sL -k --connect-timeout 2 -m 3 -w "%{http_code}" "https://www.baidu.com" -o /dev/null 2>/dev/null)
+
+    if [ "$cn_code" = "200" ]; then
+      ENV_TIP="🇨🇳 国内 (Mainland China)"
+      IsGlobal=0
+    else
+      ENV_TIP="🚫 网络连接异常"
+      IsGlobal=0
+    fi
+  fi
+
+  export IsGlobal
+  echo "📍 网络定位: $ENV_TIP"
+}
+
+check_network_env
+
+if [[ "$IsGlobal" == "1" ]];then
+  echo "🌍 检测到海外环境，使用 GitHub 源"
   UPDATE_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh"
 else
-  echo "🇨🇳 检测到国内环境 (Google Ping Failed)，使用 Gitee 源"
+  echo "🇨🇳 检测到国内环境，使用 Gitee 源"
   UPDATE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh"
 fi
 

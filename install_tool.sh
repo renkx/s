@@ -57,7 +57,7 @@ VERSION=$(echo "${VERSION}" | awk -F "[()]" '{print $2}')
 check_network_env() {
   [ -n "${IsGlobal:-}" ] && return
 
-  echo_info "🔍 正在分析网络路由 (内容校验模式)..."
+  echo_info "🔍 正在分析网络路由 ..."
 
   # 1. 核心判断：使用 Google 204 服务进行内容校验
   # -L: 跟踪重定向 (防止某些机房劫持到自己的登录页)
