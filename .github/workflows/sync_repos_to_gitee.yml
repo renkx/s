@@ -1,0 +1,35 @@
+name: Sync Repos to Gitee
+
+on:
+  schedule:
+    # 每天北京时间早上 6 点执行 (UTC 时间前一天 22:00)
+    - cron: '0 22 * * *'
+  workflow_dispatch: # 支持手动触发测试
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      # 第一步：同步 ohmyzsh 官方仓库
+      - name: Sync ohmyzsh
+        uses: Yikun/gitee-mirror-action@master
+        with:
+          src: github/ohmyzsh
+          dst: gitee/renkx
+          dst_key: ${{ secrets.GITEE_RSA_PRIVATE_KEY }}
+          dst_token: ${{ secrets.GITEE_TOKEN }}
+          static_list: "ohmyzsh"
+          force_update: true
+          clone_style: "https"
+
+      # 第二步：同步 zsh-users 组织的两个插件仓库
+      - name: Sync zsh-plugins
+        uses: Yikun/gitee-mirror-action@master
+        with:
+          src: github/zsh-users
+          dst: gitee/renkx
+          dst_key: ${{ secrets.GITEE_RSA_PRIVATE_KEY }}
+          dst_token: ${{ secrets.GITEE_TOKEN }}
+          static_list: "zsh-autosuggestions,zsh-syntax-highlighting"
+          force_update: true
+          clone_style: "https"
