@@ -360,7 +360,7 @@ echo "🚀 执行更新脚本：$UPDATE_URL"
 CURL_CMD="curl --silent --show-error --location --connect-timeout 5 --max-time 30 --retry 2"
 
 # 执行远程脚本
-if ! bash <($CURL_CMD "$UPDATE_URL") "$CONF_FILE"; then
+if ! bash <($CURL_CMD "$UPDATE_URL") "$@"; then
   echo "❌ 远程脚本执行失败"
   exit 1
 fi
