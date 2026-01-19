@@ -1,7 +1,9 @@
 #!/bin/bash
+# 设置环境变量，确保 crontab 运行时能找到命令
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
+# --- CHANGE THESE ---
 # 阿里云更新域名Api Host 默认:https://alidns.aliyuncs.com
 var_aliyun_ddns_api_host="https://alidns.aliyuncs.com"
 # 阿里云授权Key
@@ -18,163 +20,135 @@ var_domain_record_type="A"
 # 域名线路,默认为默认
 var_domain_line="default"
 # 域名生效时间,默认:600 单位:秒
-if [ "$5" ]; then
-var_domain_ttl=$5
-else
-var_domain_ttl=600
-fi
-# 当前时间戳
-var_now_timestamp=`date -u "+%Y-%m-%dT%H%%3A%M%%3A%SZ"`
-#域名解析记录Id
-var_domain_record_id=""
+if [ "$5" ]; then var_domain_ttl=$5; else var_domain_ttl=600; fi
 
-# MAYBE CHANGE THESE
-if [ "$6" ]; then
-ip=$6
-else
-ip=$(curl -s http://ipv4.icanhazip.com)
-fi
+# --- 核心：保持原代码的时间戳处理方式 ---
+var_now_timestamp=$(date -u "+%Y-%m-%dT%H%%3A%M%%3A%SZ")
 
+# --- 增强：多源 IP 获取 ---
+get_ip() {
+    local ipv4=""
+    ipv4=$(curl -s4 -m 5 --connect-timeout 2 http://ipv4.icanhazip.com 2>/dev/null | grep -Po '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    [ -z "$ipv4" ] && ipv4=$(curl -s4 -m 5 --connect-timeout 2 ip.sb 2>/dev/null | grep -Po '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    [ -z "$ipv4" ] && ipv4=$(curl -s4 -m 5 --connect-timeout 2 http://ident.me 2>/dev/null | grep -Po '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    echo "$ipv4"
+}
+
+if [ "$6" ]; then ip=$6; else ip=$(get_ip); fi
+
+# 文件路径
 ip_file=~/aliyun_ddns_ip_${var_second_level_domain}.txt
 log_file=~/aliyun_ddns_ali_${var_second_level_domain}.log
+lock_file=/tmp/ali_ddns_${var_second_level_domain}.lock
 
-echo_set() {
-  if [ "$1" ]; then
-      echo -e "[`date '+%Y-%m-%d %H:%M:%S'`] - $1"
-  fi
-}
-
-# LOGGER
+# 终端可见 + 写日志
 log() {
-    if [ "$1" ]; then
-        echo -e "[`date '+%Y-%m-%d %H:%M:%S'`] - $1" >> $log_file
-    fi
+  local msg
+  msg="[$(date '+%Y-%m-%d %H:%M:%S')] - $1"
+  echo "$msg" | tee -a "$log_file"
 }
 
+# --- 增强：并发锁，防止进程堆积 ---
+if [ -f "$lock_file" ]; then
+    pid=$(cat "$lock_file")
+    if ps -p "$pid" > /dev/null; then exit 1; fi
+fi
+echo $$ > "$lock_file"
+trap 'rm -f "$lock_file"' EXIT
+
+# --- 增强：日志轮转 (5MB) ---
 if [[ -f $log_file ]]; then
-  LOG_SIZE=$(du -sh -b $log_file | awk '{print $1}')
-  echo_set "日志文件大小 ${LOG_SIZE} byte"
-  # 50M=50*1024*1024
-  if [ ${LOG_SIZE} -gt 52428800 ]; then
-      echo_set "日志文件过大，删除日志文件。。。。"
-      rm $log_file
+  LOG_SIZE=$(stat -c%s "$log_file" 2>/dev/null || du -b "$log_file" | awk '{print $1}')
+  if [ "${LOG_SIZE:-0}" -gt 5242880 ]; then
+      log "日志文件过大，执行轮转..."
+      mv "$log_file" "${log_file}.old"
   fi
 fi
 
+# 检查 IP 变化
 if [ -f $ip_file ]; then
     old_ip=$(cat $ip_file)
-    if [ "$old_ip" ] && [ $ip == $old_ip ]; then
-        echo_set "IP has not changed."
-        exit 1
+    if [ "$old_ip" ] && [ "$ip" == "$old_ip" ]; then
+        log "IP has not changed."
+        exit 0
     fi
 fi
 
-if [[ ! -f "/usr/bin/openssl" ]]; then
-    apt-get install openssl -y
-fi
+# 检查依赖
+[[ ! -f "/usr/bin/openssl" ]] && apt-get install openssl -y
+[[ ! -f "/usr/bin/uuidgen" ]] && apt-get install -y uuid-runtime
 
-if [[ ! -f "/usr/bin/uuidgen" ]]; then
-    apt-get install -y uuid-runtime
-fi
-
-# json转换函数 fun_parse_json "json" "key_name"
+# --- 原版函数逻辑（不修改以免破坏签名） ---
 function fun_parse_json(){
     echo "${1//\"/}" | grep "$2" |  sed "s/.*$2:\([^,}]*\).*/\1/"
 }
 
-#hmac-sha1 签名 usage: get_signature "签名算法" "加密串" "key"
 function get_signature() {
     echo -ne "$2" | openssl dgst -$1 -hmac "$3" -binary | base64
 }
 
-# 生成uuid
 function fun_get_uuid(){
     echo $(uuidgen | tr '[A-Z]' '[a-z]')
 }
 
-# url编码
 function fun_url_encode() {
-    out=""
-    while read -n1 c
-    do
+    # 修复原版 read 处理最后一个字符的问题，加入拼接逻辑
+    local out=""
+    local input="$1"
+    for (( i=0; i<${#input}; i++ )); do
+        c=${input:$i:1}
         case ${c} in
             [a-zA-Z0-9._-]) out="$out$c" ;;
-            *) out="$out`printf '%%%02X' "'$c"`" ;;
+            *) out="$out$(printf '%%%02X' "'$c")" ;;
         esac
     done
-    echo -n ${out}
+    echo -n "${out}"
 }
 
-# url加密函数
-function fun_get_url_encryption() {
-    echo -n "$1" | fun_url_encode
-}
-
-# 获取域名解析记录Id正则
-function fun_get_record_id_regx() {
-    grep -Eo '"RecordId":"[0-9]+"' | cut -d':' -f2 | tr -d '"'
-}
-
-# 发送请求 eg:fun_send_request "GET" "Action" "动态请求参数（看说明）" "控制是否打印请求响应信息：true false"
 function fun_send_request() {
     local args="$3"
-    local message="$1&$(fun_get_url_encryption "/")&$(fun_get_url_encryption "$args")"
+    # 这里保持原版的加密逻辑
+    local message="$1&$(fun_url_encode "/")&$(fun_url_encode "$args")"
     local key="$var_access_key_secret&"
     local string_to_sign=$(get_signature "sha1" "$message" "$key")
-    local signature=$(fun_get_url_encryption "$string_to_sign")
+    local signature=$(fun_url_encode "$string_to_sign")
     local request_url="$var_aliyun_ddns_api_host/?$args&Signature=$signature"
-    local response=$(curl -s ${request_url})
-
-    echo $response
+    curl -s ${request_url}
 }
 
-# 查询域名解析记录值请求
 function fun_query_record_id_send() {
     local query_url="AccessKeyId=$var_access_key_id&Action=DescribeSubDomainRecords&DomainName=$var_first_level_domain&Format=json&SignatureMethod=HMAC-SHA1&SignatureNonce=$(fun_get_uuid)&SignatureVersion=1.0&SubDomain=$var_second_level_domain.$var_first_level_domain&Timestamp=$var_now_timestamp&Version=2015-01-09"
-    fun_send_request "GET" "DescribeSubDomainRecords" ${query_url}
+    fun_send_request "GET" "DescribeSubDomainRecords" "${query_url}"
 }
 
-# 更新域名解析记录值请求 fun_update_record "record_id"
 function fun_update_record_send() {
-    # 更新域名
     local query_url="AccessKeyId=$var_access_key_id&Action=UpdateDomainRecord&Format=json&Line=$var_domain_line&RR=$var_second_level_domain&RecordId=$1&SignatureMethod=HMAC-SHA1&SignatureNonce=$(fun_get_uuid)&SignatureVersion=1.0&TTL=$var_domain_ttl&Timestamp=$var_now_timestamp&Type=$var_domain_record_type&Value=$ip&Version=2015-01-09"
-
-    fun_send_request "GET" "UpdateDomainRecord" ${query_url}
+    fun_send_request "GET" "UpdateDomainRecord" "${query_url}"
 }
 
-# 获取record_id
-var_domain_record_id=`fun_query_record_id_send | fun_get_record_id_regx`
+# --- 执行逻辑 ---
+var_domain_record_id=$(fun_query_record_id_send | grep -Eo '"RecordId":"[0-9]+"' | cut -d':' -f2 | tr -d '"')
 
 if [[ "${var_domain_record_id}" = "" ]]; then
-    log_message="获取record_id为空,可能没有获取到有效的解析记录"
-    log "$log_message"
-    echo_set "$log_message"
+    log "获取record_id为空"
     exit 1
 fi
 
-# 更新record_id的域名记录
-response=`fun_update_record_send ${var_domain_record_id}`
-
+response=$(fun_update_record_send ${var_domain_record_id})
 code=$(fun_parse_json "$response" "Code")
 message=$(fun_parse_json "$response" "Message")
 
 if [[ "$code" = "" ]]; then
-    log_message="IP changed to: $ip"
     echo "$ip" > $ip_file
-    log "$log_message"
-    echo_set "$log_message"
+    log "IP changed to: $ip"
     exit 0
- else
+else
     if [[ "$code" = "DomainRecordDuplicate" ]]; then
-      log_message="domain record duplicate: $ip"
       echo "$ip" > $ip_file
-      log "$log_message"
-      echo_set "$log_message"
+      log "domain record duplicate: $ip"
       exit 0
     else
-      log_message="error code：$code error message：$message"
-      log "$log_message"
-      echo_set "$log_message"
+      log "error code：$code error message：$message"
       exit 1
     fi
 fi
