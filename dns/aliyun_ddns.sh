@@ -97,6 +97,12 @@ check_deps
 HAS_JQ=false
 if command -v jq >/dev/null 2>&1; then HAS_JQ=true; fi
 
+# url编码函数 (符合阿里云要求的 RFC3986 标准)
+function fun_url_encode() {
+    local string=$1
+    echo -n "$string" | curl -s -o /dev/null -w %{url_effective} --get --data-urlencode "=@-" "" | cut -c 3-
+}
+
 # 当前时间戳 (阿里云要求 ISO8601 格式)
 var_now_timestamp=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
 # 编码后的时间戳用于 URL
@@ -119,12 +125,6 @@ function get_signature() {
 # 生成uuid
 function fun_get_uuid(){
     uuidgen | tr '[A-Z]' '[a-z]'
-}
-
-# url编码函数 (符合阿里云要求的 RFC3986 标准)
-function fun_url_encode() {
-    local string=$1
-    echo -n "$string" | curl -s -o /dev/null -w %{url_effective} --get --data-urlencode "=@-" "" | cut -c 3-
 }
 
 # 发送请求
