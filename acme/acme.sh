@@ -64,6 +64,42 @@ log() {
   echo "$msg" | tee -a -i "$LOG"
 }
 
+# 检测网络
+check_network_env() {
+  [ -n "${IsGlobal:-}" ] && return
+
+  log "🔍 正在分析网络路由 ..."
+
+  # 1. 核心判断：使用 Google 204 服务进行内容校验
+  # -L: 跟踪重定向 (防止某些机房劫持到自己的登录页)
+  # -w %{http_code}: 只输出 HTTP 状态码
+  # --connect-timeout 2: 尝试建立连接的最长等待时间
+  # -m 4: 整个请求（包括下载数据）的总限时
+  local check_code
+  check_code=$(curl -sL -k --connect-timeout 2 -m 4 -w "%{http_code}" "https://www.google.com/generate_204" -o /dev/null 2>/dev/null)
+
+  if [ "$check_code" = "204" ]; then
+    ENV_TIP="🌍 海外 (Global)"
+    IsGlobal=1
+  else
+    # 2. 如果 Google 不通，尝试国内高可靠地址确认是否断网
+    # 阿里或百度的 HTTPS 服务在国内是绝对稳定的
+    local cn_code
+    cn_code=$(curl -sL -k --connect-timeout 2 -m 3 -w "%{http_code}" "https://www.baidu.com" -o /dev/null 2>/dev/null)
+
+    if [ "$cn_code" = "200" ]; then
+      ENV_TIP="🇨🇳 国内 (Mainland China)"
+      IsGlobal=0
+    else
+      ENV_TIP="🚫 网络连接异常"
+      IsGlobal=0
+    fi
+  fi
+
+  export IsGlobal
+  log "📍 网络定位: $ENV_TIP"
+}
+
 # 生成并安装证书
 gen_install_cert() {
   local any_success=0
@@ -207,21 +243,50 @@ if [ -z "$CONF_FILE" ] || [ ! -f "$CONF_FILE" ]; then
     exit 1
 fi
 
-GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh"
-GITEE_URL="https://gitee.com/renkx/ss/raw/main/acme/acme.sh"
+# 检测网络
+check_network_env() {
+  [ -n "${IsGlobal:-}" ] && return
 
-echo "⏱ 正在判断网络环境 (Google Ping 测试)..."
+  echo "🔍 正在分析网络路由 ..."
 
-# 使用 ping 判断国内外环境
-# -4: 强制 IPv4
-# -c 2: 发送 2 个包
-# -w 2: 整个命令限时 2 秒
-if ping -4 -c 2 -w 2 www.google.com >/dev/null 2>&1; then
-  echo "🌍 检测到海外环境 (Google Ping OK)，使用 GitHub 源"
-  UPDATE_URL="$GITHUB_URL"
+  # 1. 核心判断：使用 Google 204 服务进行内容校验
+  # -L: 跟踪重定向 (防止某些机房劫持到自己的登录页)
+  # -w %{http_code}: 只输出 HTTP 状态码
+  # --connect-timeout 2: 尝试建立连接的最长等待时间
+  # -m 4: 整个请求（包括下载数据）的总限时
+  local check_code
+  check_code=$(curl -sL -k --connect-timeout 2 -m 4 -w "%{http_code}" "https://www.google.com/generate_204" -o /dev/null 2>/dev/null)
+
+  if [ "$check_code" = "204" ]; then
+    ENV_TIP="🌍 海外 (Global)"
+    IsGlobal=1
+  else
+    # 2. 如果 Google 不通，尝试国内高可靠地址确认是否断网
+    # 阿里或百度的 HTTPS 服务在国内是绝对稳定的
+    local cn_code
+    cn_code=$(curl -sL -k --connect-timeout 2 -m 3 -w "%{http_code}" "https://www.baidu.com" -o /dev/null 2>/dev/null)
+
+    if [ "$cn_code" = "200" ]; then
+      ENV_TIP="🇨🇳 国内 (Mainland China)"
+      IsGlobal=0
+    else
+      ENV_TIP="🚫 网络连接异常"
+      IsGlobal=0
+    fi
+  fi
+
+  export IsGlobal
+  echo "📍 网络定位: $ENV_TIP"
+}
+
+check_network_env
+
+if [[ "$IsGlobal" == "1" ]];then
+  echo "🌍 检测到海外环境，使用 GitHub 源"
+  UPDATE_URL="https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh"
 else
-  echo "🇨🇳 检测到国内环境 (Google Ping Failed)，切换 Gitee 源"
-  UPDATE_URL="$GITEE_URL"
+  echo "🇨🇳 检测到国内环境，切换 Gitee 源"
+  UPDATE_URL="https://gitee.com/renkx/ss/raw/main/acme/acme.sh"
 fi
 
 echo "🚀 执行更新脚本：$UPDATE_URL"
@@ -245,19 +310,13 @@ EOF
 if [ ! -f "$ACME_INS" ]; then
   log "🚀 开始安装 acme.sh ..."
 
-  # 1. 检测网络环境
-  check_net() {
-      curl -sL --connect-timeout 3 --max-time 5 -w "%{time_total}" -o /dev/null "$1" || echo 999
-  }
+  check_network_env
 
-  GITHUB_URL="https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh"
-  github_time=$(check_net "$GITHUB_URL")
-
-  if awk "BEGIN {exit !($github_time < 1.5)}"; then
-      log "✅ GitHub 良好 (${github_time}s)，使用官方快捷安装"
-      curl "$GITHUB_URL" | sh -s -- --install-online -m m@renkx.com
+  if [[ "$IsGlobal" == "1" ]];then
+      log "✅ GitHub 良好，使用官方快捷安装"
+      curl -sL https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh | sh -s -- --install-online -m m@renkx.com
   else
-      log "⚠️ GitHub 较慢 (${github_time}s)，采用官方推荐国内 Git 方案"
+      log "⚠️ GitHub 较慢，采用官方推荐国内 Git 方案"
 
       # 2. 检查 git 是否安装
       if command -v git >/dev/null 2>&1; then
