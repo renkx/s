@@ -183,13 +183,13 @@ if [[ "$IsGlobal" == "1" ]];then
   # 高亮
   git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH}/custom/plugins/zsh-syntax-highlighting
   # 历史记录搜索
-  git clone --depth=1 https://github.com/zsh-users/zsh-history-substring-search ${ZSH}/custom/plugins/zsh-history-substring
+  git clone --depth=1 https://github.com/zsh-users/zsh-history-substring-search ${ZSH}/custom/plugins/zsh-history-substring-search
 else
   echo_info "git拉取【国内】源 ..."
   git clone https://gitee.com/renkx/ohmyzsh.git ${ZSH}
   git clone --depth=1 https://gitee.com/renkx/zsh-autosuggestions.git ${ZSH}/custom/plugins/zsh-autosuggestions
   git clone --depth=1 https://gitee.com/renkx/zsh-syntax-highlighting.git ${ZSH}/custom/plugins/zsh-syntax-highlighting
-  git clone --depth=1 https://gitee.com/renkx/zsh-history-substring-search ${ZSH}/custom/plugins/zsh-history-substring
+  git clone --depth=1 https://gitee.com/renkx/zsh-history-substring-search ${ZSH}/custom/plugins/zsh-history-substring-search
 fi
 
 # 编辑替换主题
