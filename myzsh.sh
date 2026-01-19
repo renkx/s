@@ -107,7 +107,7 @@ source /etc/profile
 
 export ZSH="$HOME/.oh-my-zsh"
 
-ZSH_THEME="Powerlevel10k"
+ZSH_THEME="powerlevel10k/powerlevel10k"
 
 # disable automatic updates
 zstyle ':omz:update' mode disabled
@@ -175,12 +175,16 @@ if [[ "$IsGlobal" == "1" ]];then
   git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions.git ${ZSH}/custom/plugins/zsh-autosuggestions
   # 高亮
   git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH}/custom/plugins/zsh-syntax-highlighting
+  # 主题
+  git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH}/custom/themes/powerlevel10k
 else
 
   echo_info "git拉取【国内】ohmyzsh ... ($ZSH)"
   git clone https://gitee.com/renkx/ohmyzsh.git ${ZSH}
   git clone --depth=1 https://gitee.com/renkx/zsh-autosuggestions.git ${ZSH}/custom/plugins/zsh-autosuggestions
   git clone --depth=1 https://gitee.com/renkx/zsh-syntax-highlighting.git ${ZSH}/custom/plugins/zsh-syntax-highlighting
+  # 主题
+  git clone --depth=1 https://gitee.com/romkatv/powerlevel10k.git ${ZSH}/custom/themes/powerlevel10k
 fi
 
 # 编辑替换主题
