@@ -175,8 +175,7 @@ update_swap() {
 }
 
 # 更新 nameserver
-update_nameserver()
-{
+update_nameserver() {
   check_network_env
 
   chattr -i /etc/resolv.conf
@@ -198,6 +197,54 @@ EOF
   fi
   chattr +i /etc/resolv.conf
   judge "设置 nameserver 并 chattr +i /etc/resolv.conf 加锁"
+}
+
+# 清理系统垃圾
+clean_system_rubbish() {
+  echo_info "开始系统保养与深度清理..."
+
+  # 1. 清理云厂商组件 (qemu-guest-agent 等)
+  # 存在才删，不浪费性能
+  local CLOUD_PACKS="qemu-guest-agent cloud-init"
+  for pkg in $CLOUD_PACKS; do
+      if dpkg -l | grep -q "$pkg"; then
+          echo_info "检测到残留组件: $pkg，正在彻底卸载..."
+          apt-get purge -y "$pkg"
+      fi
+  done
+
+  # 2. 清理残余配置文件 (rc状态)
+  # 只要系统在运行，就可能产生 rc 状态的残留
+  local RC_LIST=$(dpkg -l | awk '/^rc/ {print $2}')
+  if [ -n "$RC_LIST" ]; then
+      echo_info "清理残余配置文件..."
+      echo "$RC_LIST" | xargs apt-get -y purge
+  fi
+
+  # 3. 基础包管理清理 (保留 clean，清理下载缓存)
+  echo_info "清理冗余软件包及缓存..."
+  apt-get autoremove --purge -y
+  apt-get clean -y
+
+  # 4. 日志清理
+  # 日常维护建议保留 7 天， size 限制在 100M
+  echo_info "压缩并清理系统日志..."
+  journalctl --rotate
+  journalctl --vacuum-size=100M
+  journalctl --vacuum-time=7d
+
+  # 5. 临时文件清理 (只删 24 小时前的，更安全)
+  echo_info "清理 24 小时前的临时文件..."
+  find /tmp -mindepth 1 -mtime +1 -delete 2>/dev/null
+  find /var/tmp -mindepth 1 -mtime +1 -delete 2>/dev/null
+
+  # 6. Docker 冗余清理 (日常建议去掉 -a，只清理无效碎片)
+  if command -v docker >/dev/null 2>&1 && systemctl is-active --quiet docker; then
+      echo_info "检测到 Docker 运行中，清理无用碎片..."
+      docker system prune -f
+  fi
+
+  echo_info "系统清理完成！"
 }
 
 # 获取操作系统名称
@@ -718,7 +765,7 @@ action_logic() {
         update_nameserver
         ;;
     7)
-        apt -y autoremove --purge qemu-guest-agent
+        clean_system_rubbish
         ;;
     8)
         update_swap
@@ -736,7 +783,7 @@ action_logic() {
         install_on_my_zsh
         update_motd
         update_nameserver
-        apt -y autoremove --purge qemu-guest-agent
+        clean_system_rubbish
         ;;
     887)
         check_sys_official_xanmod
@@ -765,7 +812,7 @@ menu() {
     echo -e "${Green}4.${Font} 安装 on-my-zsh"
     echo -e "${Green}5.${Font} 更新 motd"
     echo -e "${Green}6.${Font} 更新 nameserver"
-    echo -e "${Green}7.${Font} 卸载 qemu-guest-agent"
+    echo -e "${Green}7.${Font} 清理系统垃圾"
     echo -e "${Green}8.${Font} 虚拟内存设置"
     echo -e "${Green}9.${Font} 安装acme命令动态配置域名证书"
     echo -e "${Green}10.${Font} 安装docker容器自动更新"
