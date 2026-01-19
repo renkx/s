@@ -263,7 +263,7 @@ set_cronjob() {
   local rand_hour=$(( seed % 6 ))
 
   local cmd_part="bash $RUNNER $CONF_FILE"
-  local cron_time="$rand_min $rand_hour 1,15 * *"
+  local cron_time="$rand_min $rand_hour * * *"
   local full_entry="$cron_time $cmd_part > /dev/null 2>&1"
 
   # 获取当前 crontab，确保换行符正确
