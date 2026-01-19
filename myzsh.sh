@@ -214,4 +214,4 @@ if [[ "$SHELL" != "$ZSH_PATH" ]]; then
     judge "更改默认 shell"
 fi
 
-judge "更改默认shell为zsh"
+echo_ok "安装完成！请重启终端或执行: source ~/.zshrc"
