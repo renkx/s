@@ -292,7 +292,7 @@ EOF
 
   systemctl daemon-reload
   echo_ok "系统深度优化已全部应用完成！"
-  echo_err "【重要】为了使所有修改（尤其是 Hashsize 和 Systemd 限制）彻底生效，请务必执行：reboot"
+  echo_info "【重要】为了使所有修改（尤其是 Hashsize 和 Systemd 限制）彻底生效，请务必执行：reboot"
 }
 
 optimizing_system
