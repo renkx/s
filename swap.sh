@@ -74,7 +74,7 @@ clear_all_swap(){
 
 # 创建新的 /swapfile
 create_swapfile(){
-  read -p "请输入新的虚拟内存大小(MB): " new_swap
+  read -p "请输入新的虚拟内存大小(MB): " new_swap < /dev/tty
 
   if ! [[ "$new_swap" =~ ^[0-9]+$ ]]; then
       echo -e "${Red}输入无效，请输入数字。${Font}"
@@ -124,7 +124,7 @@ main(){
     ovz_no
     show_mem_swap
 
-    read -p "是否清理所有 swap 并重新定义 /swapfile?(Y/N): " choice
+    read -p "是否清理所有 swap 并重新定义 /swapfile?(Y/N): " choice < /dev/tty
     case "$choice" in
         [Yy])
             clear_all_swap
