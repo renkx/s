@@ -2,11 +2,15 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
+Green="\033[32m"
 Red="\033[31m"
+# 有背景的绿色
+GreenBG="\033[42;37m"
 # 有背景的红色
 RedBG="\033[41;37m"
 Font="\033[0m"
 
+OK="${Green}[OK]${Font}"
 Error="${Red}[错误]${Font}"
 
 # 检查当前用户是否为 root 用户
@@ -237,3 +241,5 @@ EOF
 }
 
 update_motd
+
+echo -e "${OK} ${GreenBG} 目录 /etc/update-motd.d/ 更新完成 ${Font}"

@@ -32,15 +32,6 @@ echo_error() {
   echo -e "${Error} ${RedBG} $@ ${Font}" >&2
 }
 
-# 检测执行结果，并输出相应的提示信息
-check_result() {
-  if [[ 0 -eq $? ]]; then
-    echo_ok "$1 [成功]"
-  else
-    echo_error "$1 [失败]"
-  fi
-}
-
 # 检查当前用户是否为 root 用户
 if [ "$EUID" -ne 0 ]; then
   echo_error "请使用 root 用户身份运行此脚本"
@@ -89,89 +80,27 @@ check_network_env() {
   echo_info "📍 网络定位: $ENV_TIP"
 }
 
-judge() {
-    if [[ 0 -eq $? ]]; then
-        echo -e "${OK} ${GreenBG} $1 完成 ${Font}"
-        sleep 1
+# 远程脚本执行函数
+remote_execute() {
+    local file_path=$1
+    local args=$2
+    # 检查网络
+    check_network_env
+
+    local base_url="https://raw.githubusercontent.com/renkx/s/main"
+    [[ "$IsGlobal" != "1" ]] && base_url="https://gitee.com/renkx/ss/raw/main"
+
+    echo_info "正在获取脚本: ${file_path} ..."
+
+    # 建议先下载到临时变量或文件，确保下载成功再执行
+    local script_content
+    script_content=$(curl -sSL "${base_url}/${file_path}")
+
+    if [ -n "$script_content" ]; then
+        bash <(echo "$script_content") $args
     else
-        echo -e "${Error} ${RedBG} $1 失败${Font}"
-        exit 1
+        echo_error "脚本下载失败，请检查网络连接。"
     fi
-}
-
-_exists() {
-    local cmd="$1"
-    if eval type type >/dev/null 2>&1; then
-        eval type "$cmd" >/dev/null 2>&1
-    elif command >/dev/null 2>&1; then
-        command -v "$cmd" >/dev/null 2>&1
-    else
-        which "$cmd" >/dev/null 2>&1
-    fi
-    local rt=$?
-    return ${rt}
-}
-
-install_base() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_base.sh)
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_base.sh)
-  fi
-}
-
-install_docker() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_docker.sh)
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/install_docker.sh)
-  fi
-}
-
-install_on_my_zsh() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/myzsh.sh)
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/myzsh.sh)
-  fi
-}
-
-# 系统优化
-optimizing_system() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/optimizing_system.sh)
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/optimizing_system.sh)
-  fi
-}
-
-# 虚拟内存设置
-update_swap() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/swap.sh)
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/swap.sh)
-  fi
 }
 
 # 更新 nameserver
@@ -179,31 +108,25 @@ update_nameserver() {
   check_network_env
 
   chattr -i /etc/resolv.conf
-  judge "chattr -i /etc/resolv.conf 解锁"
-  # 锁定DNS解析（第一个异常会请求第二个，为了防止docker容器还没启动。比如warp就会出问题）
+  echo_ok "chattr -i /etc/resolv.conf 解锁"
 
-  if [[ "$IsGlobal" == "1" ]];then
-  echo_info "8.8.8.8 设置中。。。"
-  cat >/etc/resolv.conf <<'EOF'
+  # 锁定DNS解析（第一个异常会请求第二个，为了防止docker容器还没启动。比如warp就会出问题）
+  local dns_server="8.8.8.8"
+  [[ "$IsGlobal" != "1" ]] && dns_server="223.5.5.5"
+
+  cat >/etc/resolv.conf <<EOF
 nameserver 127.0.0.1
-nameserver 8.8.8.8
+nameserver $dns_server
 EOF
-  else
-  echo_info "223.5.5.5 设置中。。。"
-  cat >/etc/resolv.conf <<'EOF'
-nameserver 127.0.0.1
-nameserver 223.5.5.5
-EOF
-  fi
-  chattr +i /etc/resolv.conf
-  judge "设置 nameserver 并 chattr +i /etc/resolv.conf 加锁"
+    chattr +i /etc/resolv.conf
+    echo_ok "DNS 已更新为 $dns_server 并加锁"
 }
 
 # 清理系统垃圾
 clean_system_rubbish() {
   echo_info "开始系统保养与深度清理..."
 
-  # 1. 清理云厂商组件 (qemu-guest-agent 等)
+  # 清理云厂商组件 (qemu-guest-agent 等)
   # 存在才删，不浪费性能
   local CLOUD_PACKS="qemu-guest-agent cloud-init"
   for pkg in $CLOUD_PACKS; do
@@ -213,7 +136,7 @@ clean_system_rubbish() {
       fi
   done
 
-  # 2. 清理残余配置文件 (rc状态)
+  # 清理残余配置文件 (rc状态)
   # 只要系统在运行，就可能产生 rc 状态的残留
   local RC_LIST=$(dpkg -l | awk '/^rc/ {print $2}')
   if [ -n "$RC_LIST" ]; then
@@ -221,30 +144,38 @@ clean_system_rubbish() {
       echo "$RC_LIST" | xargs apt-get -y purge
   fi
 
-  # 3. 基础包管理清理 (保留 clean，清理下载缓存)
+  # 基础包管理清理 (保留 clean，清理下载缓存)
   echo_info "清理冗余软件包及缓存..."
   apt-get autoremove --purge -y
+  apt-get autoclean -y
   apt-get clean -y
 
-  # 4. 日志清理
+  # 日志清理
   # 日常维护建议保留 7 天， size 限制在 100M
   echo_info "压缩并清理系统日志..."
   journalctl --rotate
   journalctl --vacuum-size=100M
   journalctl --vacuum-time=7d
 
-  # 5. 临时文件清理 (只删 24 小时前的，更安全)
+  # 临时文件清理 (只删 24 小时前的，更安全)
   echo_info "清理 24 小时前的临时文件..."
   find /tmp -mindepth 1 -mtime +1 -delete 2>/dev/null
   find /var/tmp -mindepth 1 -mtime +1 -delete 2>/dev/null
 
-  # 6. Docker 冗余清理 (日常建议去掉 -a，只清理无效碎片)
+  # 安全清理 APT 列表缓存
+  # 直接删除 /var/lib/apt/lists/ 下的文件是清理索引最彻底且安全的方法
+  # 下次执行 apt update 会自动重新下载最干净的索引
+  echo_info "深度清理 APT 索引缓存..."
+  find /var/lib/apt/lists/ -type f -delete
+
+  # Docker 冗余清理 (日常建议去掉 -a，只清理无效碎片)
   if command -v docker >/dev/null 2>&1 && systemctl is-active --quiet docker; then
       echo_info "检测到 Docker 运行中，清理无用碎片..."
       docker system prune -f
   fi
 
   echo_info "系统清理完成！"
+  echo_info "提示：APT 索引已清理，下次安装软件前请执行 apt update"
 }
 
 # 获取操作系统名称
@@ -287,8 +218,8 @@ check_status() {
   virt_check
   kern=$(uname -r)
   arch=$(uname -m)
-  net_congestion_control=$(sysctl -n net.ipv4.tcp_congestion_control)
-  net_qdisc=$(sysctl -n net.core.default_qdisc)
+  net_congestion_control=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "unknown")
+  net_qdisc=$(sysctl -n net.core.default_qdisc 2>/dev/null || echo "unknown")
 
   # 1. 内核类型判定
   if [[ "$kern" == *bbrplus* ]]; then
@@ -324,225 +255,41 @@ check_status() {
   esac
 }
 
+install_base() {
+  remote_execute "install_base.sh"
+}
+
+install_docker() {
+  remote_execute "install_docker.sh"
+}
+
+install_on_my_zsh() {
+  remote_execute "myzsh.sh"
+}
+
+# 系统优化
+optimizing_system() {
+  remote_execute "optimizing_system.sh"
+}
+
+# 虚拟内存设置
+update_swap() {
+  remote_execute "swap.sh"
+}
+
 # 更新motd
 update_motd() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/update_motd.sh)
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/update_motd.sh)
-  fi
-}
-
-# 检查磁盘空间
-check_disk_space() {
-    # 检查是否存在 bc 命令
-    if ! command -v bc &> /dev/null; then
-        echo "安装 bc 命令..."
-        # 检查系统类型并安装相应的 bc 包
-        if [ -f /etc/redhat-release ]; then
-            yum install -y bc
-        elif [ -f /etc/debian_version ]; then
-            apt-get update
-            apt-get install -y bc
-        else
-            echo_error "无法确定系统类型，请手动安装 bc 命令。"
-            return 1
-        fi
-    fi
-
-    # 获取当前磁盘剩余空间
-    available_space=$(df -h / | awk 'NR==2 {print $4}')
-
-    # 移除单位字符，例如"GB"，并将剩余空间转换为数字
-    available_space=$(echo $available_space | sed 's/G//' | sed 's/M//')
-
-    # 如果剩余空间小于等于0，则输出警告信息
-    if [ $(echo "$available_space <= 0" | bc) -eq 1 ]; then
-        echo_error "警告：磁盘空间已用尽，请勿重启，先清理空间。建议先卸载刚才安装的内核来释放空间，仅供参考。"
-    else
-        echo_info "当前磁盘剩余空间：$available_space GB"
-    fi
-}
-
-# 更新引导
-update_grub() {
-  if _exists "update-grub"; then
-    update-grub
-  elif [ -f "/usr/sbin/update-grub" ]; then
-    /usr/sbin/update-grub
-  else
-    apt install grub2-common -y
-    update-grub
-  fi
-  check_disk_space
-}
-
-# 检查官方 xanmod 内核并安装
-check_sys_official_xanmod() {
-  # 获取系统信息
-  os_info=$(cat /etc/os-release 2>/dev/null)
-  # 判断是否为 Debian 系统
-  if [[ "$os_info" != *"Debian"* ]]; then
-      echo_error "不支持Debian以外的系统"
-      exit 1
-  fi
-
-  bit=$(uname -m)
-  if [[ ${bit} != "x86_64" ]]; then
-    echo_error "不支持x86_64以外的系统 !"
-    exit 1
-  fi
-
-  if ! wget -O check_x86-64_psabi.sh https://dl.xanmod.org/check_x86-64_psabi.sh; then
-    echo_error "CPU 检测脚本下载失败"
-    exit 1
-  fi
-
-  chmod +x check_x86-64_psabi.sh
-  cpu_level=$(./check_x86-64_psabi.sh | awk -F 'v' '{print $2}')
-  if [ -z "$cpu_level" ]; then
-      echo "CPU级别获取异常！请查看 check_x86-64_psabi.sh 脚本"
-      exit 1
-  fi
-  echo -e "CPU supports \033[32m${cpu_level}\033[0m"
-  rm check_x86-64_psabi.sh
-
-  apt update
-  apt-get install gnupg2 sudo -y
-
-  wget -qO - https://dl.xanmod.org/archive.key | sudo gpg --dearmor -vo /etc/apt/keyrings/xanmod-archive-keyring.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/xanmod-release.list
-
-  apt update
-  case "$cpu_level" in
-    # 官方不单独发布 v4 包（因为 AVX-512 对内核没好处），直接用v3的包
-    4) apt install -y linux-xanmod-rt-x64v3 ;;
-    3) apt install -y linux-xanmod-rt-x64v3 ;;
-    2) apt install -y linux-xanmod-rt-x64v2 ;;
-    # rt版本没有v1，所以改为安装其他版本
-    *) apt install -y linux-xanmod-lts-x64v1 ;;
-  esac
-
-  # 删除apt源，防止硬盘小的vps没有空间更新内核
-  rm -f /etc/apt/sources.list.d/xanmod-release.list
-  apt update
-
-  update_grub
-  echo_ok "内核安装完毕，请参考上面的信息检查是否安装成功,默认从排第一的高版本内核启动"
-}
-
-# 检查官方 xanmod 内核并安装和删除旧版内核
-check_sys_official_xanmod_and_detele_kernel() {
-  check_sys_official_xanmod
-
-  # 获取最新内核版本编号
-  kernel_version=$(dpkg -l | grep linux-image | awk '/xanmod/ {print $2}' | sort -V -r | head -n 1 | sed 's/linux-image-//')
-  echo_info "内核保留保留保留的内核关键词 $kernel_version"
-  if [ -z "$kernel_version" ]; then
-      echo_error "最新内核版本编号获取失败，不执行卸载其他内核操作"
-      exit 1
-  fi
-  detele_kernel
-  detele_kernel_head
-  update_grub
-}
-
-# 删除多余内核
-detele_kernel() {
-  # 获取系统信息
-  os_info=$(cat /etc/os-release 2>/dev/null)
-  # 判断是否为 Debian 系统
-  if [[ "$os_info" == *"Debian"* ]]; then
-    deb_total=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
-    if [ "$deb_total" -eq 0 ]; then
-      echo_info "没有要卸载的内核。"
-      exit 1
-    elif [ "${deb_total}" -ge 1 ]; then
-      echo_info "检测到 ${deb_total} 个其余内核，开始卸载..."
-      for ((integer = 1; integer <= ${deb_total}; integer++)); do
-        deb_del=$(dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
-        echo_info "开始卸载 ${deb_del} 内核..."
-        apt-get purge -y ${deb_del}
-        apt-get autoremove -y
-        echo_info "卸载 ${deb_del} 内核卸载完成，继续..."
-      done
-      echo_info "内核卸载完毕，继续..."
-    else
-      echo_error " 检测到 内核 数量不正确，请检查 !"
-      update_grub
-      exit 1
-    fi
-  fi
-}
-
-detele_kernel_head() {
-  # 获取系统信息
-  os_info=$(cat /etc/os-release 2>/dev/null)
-  # 判断是否为 Debian 系统
-  if [[ "$os_info" == *"Debian"* ]]; then
-    deb_total=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | wc -l)
-    if [ "$deb_total" -eq 0 ]; then
-      echo_info "没有要卸载的head内核。"
-      exit 1
-    elif [ "${deb_total}" -ge 1 ]; then
-      echo_info "检测到 ${deb_total} 个其余head内核，开始卸载..."
-      for ((integer = 1; integer <= ${deb_total}; integer++)); do
-        deb_del=$(dpkg -l | grep linux-headers | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer})
-        echo_info "开始卸载 ${deb_del} headers内核..."
-        apt-get purge -y ${deb_del}
-        apt-get autoremove -y
-        echo_info "卸载 ${deb_del} head内核卸载完成，继续..."
-      done
-      echo_info "head内核卸载完毕，继续..."
-    else
-      echo_error " 检测到 head内核 数量不正确，请检查 !"
-      update_grub
-      exit 1
-    fi
-  fi
-}
-
-# 删除保留指定内核
-detele_kernel_custom() {
-  update_grub
-  read -p " 查看上面内核输入需保留保留保留的内核关键词(如:5.15.0-11) :" kernel_version
-  detele_kernel
-  detele_kernel_head
-  update_grub
+  remote_execute "update_motd.sh"
 }
 
 # 安装acme命令动态配置域名证书
 install_acme() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    echo_info "bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf"
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh) ~/ag/conf/default/acme.conf
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    echo_info "bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh) ~/ag/conf/default/acme.conf"
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh) ~/ag/conf/default/acme.conf
-  fi
+  remote_execute "acme/acme.sh" ~/ag/conf/default/acme.conf
 }
 
 # 安装docker容器自动更新
 install_docker_auto_update() {
-  check_network_env
-
-  if [[ "$IsGlobal" == "1" ]];then
-    echo_info "执行【github】的脚本 ..."
-    echo_info "bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh) ~/ag"
-    bash <(curl -sSL https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh) ~/ag
-  else
-    echo_info "执行【gitee】的脚本 ..."
-    echo_info "bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh) ~/ag"
-    bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh) ~/ag
-  fi
+  remote_execute "docker/docker_auto_update.sh" ~/ag
 }
 
 # 将所有功能逻辑封装到一个独立的函数中
@@ -582,22 +329,13 @@ action_logic() {
         install_docker_auto_update
         ;;
     333)
-        optimizing_system
-        install_base
-        install_docker
-        install_on_my_zsh
-        update_motd
-        update_nameserver
-        clean_system_rubbish
-        ;;
-    887)
-        check_sys_official_xanmod
-        ;;
-    888)
-        check_sys_official_xanmod_and_detele_kernel
-        ;;
-    889)
-        detele_kernel_custom
+        echo_info "🚀 开始全自动化安装与优化..."
+        for cmd in optimizing_system install_base install_docker install_on_my_zsh update_motd update_nameserver clean_system_rubbish; do
+            echo_ok "-------------------------------------------"
+            echo_info "正在执行: $cmd"
+            $cmd
+        done
+        echo_ok "✅ 所有任务已完成！"
         ;;
     *)
         echo -e "${RedBG}错误: 无效的指令 [$1]${Font}"
@@ -623,9 +361,6 @@ menu() {
     echo -e "${Green}10.${Font} 安装docker容器自动更新"
 
     echo -e "${Green}333.${Font} 一键 1、2、3、4、5、6、7"
-    echo -e "${Green}987.${Font} 安装 XANMOD 官方内核"
-    echo -e "${Green}888.${Font} 安装 XANMOD 官方内核并删除旧内核"
-    echo -e "${Green}889.${Font} 删除保留指定内核"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
