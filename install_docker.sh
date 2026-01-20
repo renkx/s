@@ -172,21 +172,50 @@ EOF
   fi
 }
 
+# 检测网络
+check_network_env() {
+  [ -n "${IsGlobal:-}" ] && return
+
+  echo_info "🔍 正在分析网络路由 ..."
+
+  # 1. 核心判断：使用 Google 204 服务进行内容校验
+  # -L: 跟踪重定向 (防止某些机房劫持到自己的登录页)
+  # -w %{http_code}: 只输出 HTTP 状态码
+  # --connect-timeout 2: 尝试建立连接的最长等待时间
+  # -m 4: 整个请求（包括下载数据）的总限时
+  local check_code
+  check_code=$(curl -sL -k --connect-timeout 2 -m 4 -w "%{http_code}" "https://www.google.com/generate_204" -o /dev/null 2>/dev/null)
+
+  if [ "$check_code" = "204" ]; then
+    ENV_TIP="🌍 海外 (Global)"
+    IsGlobal=1
+  else
+    # 2. 如果 Google 不通，尝试国内高可靠地址确认是否断网
+    # 阿里或百度的 HTTPS 服务在国内是绝对稳定的
+    local cn_code
+    cn_code=$(curl -sL -k --connect-timeout 2 -m 3 -w "%{http_code}" "https://www.baidu.com" -o /dev/null 2>/dev/null)
+
+    if [ "$cn_code" = "200" ]; then
+      ENV_TIP="🇨🇳 国内 (Mainland China)"
+      IsGlobal=0
+    else
+      ENV_TIP="🚫 网络连接异常"
+      IsGlobal=0
+    fi
+  fi
+
+  export IsGlobal
+  echo_info "📍 网络定位: $ENV_TIP"
+}
+
 install_docker() {
   is_root
   check_system
   # 防火墙处理
   setup_firewall
 
-  echo_info "检测是否能ping谷歌"
-  IsGlobal="0"
-  delay="$(ping -4 -c 2 -w 2 www.google.com | grep rtt | cut -d'/' -f4 | awk '{ print $3 }' | sed -n '/^[0-9]\+\(\.[0-9]\+\)\?$/p')";
-  if [ "$delay" != "" ] ; then
-    IsGlobal="1"
-    echo_info "延迟：$delay ms , ping yes"
-  else
-    echo_info "延迟：$delay ms , ping no"
-  fi
+  # 检测网络
+  check_network_env
 
   if [[ "${ID}" == "debian" ]]; then
       # 参考：https://docs.docker.com/engine/install/debian/#install-using-the-repository
