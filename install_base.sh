@@ -63,6 +63,43 @@ source '/etc/os-release'
 #从VERSION中提取发行版系统的英文名称，为了在debian/ubuntu下添加相对应的Nginx apt源
 VERSION=$(echo "${VERSION}" | awk -F "[()]" '{print $2}')
 
+
+# 检测网络
+check_network_env() {
+  [ -n "${IsGlobal:-}" ] && return
+
+  echo_info "🔍 正在分析网络路由 ..."
+
+  # 1. 核心判断：使用 Google 204 服务进行内容校验
+  # -L: 跟踪重定向 (防止某些机房劫持到自己的登录页)
+  # -w %{http_code}: 只输出 HTTP 状态码
+  # --connect-timeout 2: 尝试建立连接的最长等待时间
+  # -m 4: 整个请求（包括下载数据）的总限时
+  local check_code
+  check_code=$(curl -sL -k --connect-timeout 2 -m 4 -w "%{http_code}" "https://www.google.com/generate_204" -o /dev/null 2>/dev/null)
+
+  if [ "$check_code" = "204" ]; then
+    ENV_TIP="🌍 海外 (Global)"
+    IsGlobal=1
+  else
+    # 2. 如果 Google 不通，尝试国内高可靠地址确认是否断网
+    # 阿里或百度的 HTTPS 服务在国内是绝对稳定的
+    local cn_code
+    cn_code=$(curl -sL -k --connect-timeout 2 -m 3 -w "%{http_code}" "https://www.baidu.com" -o /dev/null 2>/dev/null)
+
+    if [ "$cn_code" = "200" ]; then
+      ENV_TIP="🇨🇳 国内 (Mainland China)"
+      IsGlobal=0
+    else
+      ENV_TIP="🚫 网络连接异常"
+      IsGlobal=0
+    fi
+  fi
+
+  export IsGlobal
+  echo_info "📍 网络定位: $ENV_TIP"
+}
+
 # 卸载软件
 remove() {
   if [ $# -eq 0 ]; then
@@ -108,54 +145,116 @@ is_root() {
 }
 
 chrony_install() {
+  # 检查并安装 chrony
   if ! command -v chronyd &>/dev/null && ! command -v chrony &>/dev/null; then
       ${INS} -y install chrony
       judge "安装 chrony 时间同步服务 "
   fi
 
+  check_network_env
+
+  echo_info "正在根据网络环境配置 NTP 源..."
+
+  # 停止服务以便重写配置
+  systemctl stop chrony 2>/dev/null || systemctl stop chronyd 2>/dev/null
+
+  # --- 核心改进：基于 IsGlobal 动态配置 NTP 源 ---
+  if [[ "$IsGlobal" == "1" ]]; then
+      # 海外机器：使用 Google 和 Debian 官方源
+      local ntp_servers="pool time.google.com iburst
+pool time.cloudflare.com iburst
+pool 2.debian.pool.ntp.org iburst"
+  else
+      # 国内机器：首选阿里、腾讯、国家授时中心源
+      local ntp_servers="pool ntp.aliyun.com iburst
+pool ntp.tencent.com iburst
+pool ntp.ntsc.ac.cn iburst"
+  fi
+
+  # 备份旧配置并重写
+  [ -f /etc/chrony/chrony.conf ] && mv /etc/chrony/chrony.conf /etc/chrony/chrony.conf.bak
+
+  # 重写配置文件，保留你发现的关键目录引用
+    cat <<EOF > /etc/chrony/chrony.conf
+$ntp_servers
+
+# 保持与 DHCP 获取的源兼容 (sourcedir 允许从云厂商内网获取源)
+sourcedir /run/chrony-dhcp
+sourcedir /etc/chrony/sources.d
+
+# 基础文件路径设置
+keyfile /etc/chrony/chrony.keys
+driftfile /var/lib/chrony/chrony.drift
+ntsdumpdir /var/lib/chrony
+logdir /var/log/chrony
+
+maxupdateskew 100.0
+leapseclist /usr/share/zoneinfo/leap-seconds.list
+
+# 核心同步逻辑优化
+# 如果偏差大于 1 秒，则不限次数强制步进对齐 (解决 503 和时间大幅偏差的关键)
+makestep 1.0 -1
+rtcsync
+
+# 包含 conf.d 目录下的其他配置
+confdir /etc/chrony/conf.d
+EOF
+
+  # 确保服务没有被 mask，然后启动
+  local service_name="chrony"
+  [[ "${ID}" == "centos" ]] && service_name="chronyd"
+  systemctl unmask $service_name >/dev/null 2>&1
+  systemctl enable $service_name
+  systemctl restart $service_name
+  judge "chronyd 启动与配置应用"
+
+  # 显式开启系统 NTP 同步开关
   timedatectl set-ntp true
   check_result "设置系统时间同步服务"
-
-  if [[ "${ID}" == "centos" ]]; then
-      systemctl enable chronyd && systemctl restart chronyd
-  else
-      systemctl enable chrony && systemctl restart chrony
-  fi
-  judge "chronyd 启动 "
 
   timedatectl set-timezone Asia/Shanghai
   check_result "设置时区为 Asia/Shanghai"
 
-  echo_ok "等待 Chrony 同步时间中..."
+  # 强制让 chrony 立即尝试探测源，而不是等待轮询周期
+  chronyc burst 4/4 >/dev/null 2>&1
+  # 立即执行步进对齐
+  chronyc makestep >/dev/null 2>&1
+
+  echo_ok "等待 Chrony 同步时间中 ..."
   MAX_WAIT=60    # 最多等待 60 秒
   INTERVAL=2     # 每 2 秒检查一次
   elapsed=0
 
   while true; do
-      # 获取系统与 NTP 偏差（以秒为单位）
-      offset=$(chronyc tracking 2>/dev/null | awk '/System time/ {print $4}')
-      offset=${offset%.*}  # 去掉小数部分
-      offset=${offset#-}   # 取绝对值
+    # 获取系统与 NTP 偏差（以秒为单位）
+    # 增加判断：只有 Reference ID 不是 0.0.0.0 时，offset 才有意义
+    tracking_info=$(chronyc tracking 2>/dev/null)
+    if echo "$tracking_info" | grep -q "Reference ID" && ! echo "$tracking_info" | grep -q "0.0.0.0"; then
+        offset=$(echo "$tracking_info" | awk '/System time/ {print $4}')
+        # 去掉负号，并判断是否小于 1 秒
+        abs_offset=$(echo "$offset" | tr -d '-' | awk '{print ($1 < 1.0) ? "pass" : "fail"}')
 
-      if [[ -n "$offset" && "$offset" -le 1 ]]; then
-          echo_ok "时间同步完成，系统与 NTP 偏差：${offset} 秒"
-          break
-      fi
+        if [[ "$abs_offset" == "pass" ]]; then
+            echo_ok "时间同步完成，系统与 NTP 偏差：${offset} 秒"
+            break
+        fi
+    fi
 
-      sleep $INTERVAL
-      elapsed=$((elapsed + INTERVAL))
-      if [[ $elapsed -ge $MAX_WAIT ]]; then
-          echo_error "等待超时，当前系统时间与 NTP 偏差：${offset:-未知} 秒"
-          break
-      fi
+    sleep $INTERVAL
+    elapsed=$((elapsed + INTERVAL))
+    if [[ $elapsed -ge $MAX_WAIT ]]; then
+        echo_error "时间同步握手超时。建议检查机器 UDP 123 端口出站权限，当前偏差: ${offset:-未知} 秒。"
+        break
+    fi
   done
 
+  # 最终状态展示
   chronyc sourcestats -v
   check_result "查看时间同步源"
   chronyc tracking -v
   check_result "查看时间同步状态"
   date
-  check_result "查看时间"
+  check_result "查看最终系统时间"
 }
 
 # 依赖安装
