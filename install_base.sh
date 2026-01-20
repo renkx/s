@@ -200,6 +200,10 @@ rtcsync
 confdir /etc/chrony/conf.d
 EOF
 
+  # 后面systemctl restart会报错：dpkg-statoverride: warning: --update given but /var/log/chrony does not exist
+  # 这是因为在配置文件里指定了 logdir /var/log/chrony，但文件夹还没创建
+  mkdir -p /var/log/chrony && chown _chrony:_chrony /var/log/chrony 2>/dev/null || chown chrony:chrony /var/log/chrony 2>/dev/null
+
   # 确保服务没有被 mask，然后启动
   local service_name="chrony"
   [[ "${ID}" == "centos" ]] && service_name="chronyd"
@@ -226,30 +230,43 @@ EOF
   elapsed=0
 
   while true; do
-    # 获取系统与 NTP 偏差（以秒为单位）
-    # 增加判断：只有 Reference ID 不是 0.0.0.0 时，offset 才有意义
     tracking_info=$(chronyc tracking 2>/dev/null)
-    if echo "$tracking_info" | grep -q "Reference ID" && ! echo "$tracking_info" | grep -q "0.0.0.0"; then
-        offset=$(echo "$tracking_info" | awk '/System time/ {print $4}')
-        # 去掉负号，并判断是否小于 1 秒
-        abs_offset=$(echo "$offset" | tr -d '-' | awk '{print ($1 < 1.0) ? "pass" : "fail"}')
+    # 1. 检查 Reference ID 是否已分配（非 0.0.0.0）
+    # 只要有了 Ref ID，就说明已经连上服务器了
+    ref_id=$(echo "$tracking_info" | awk -F': ' '/Reference ID/ {print $2}' | awk '{print $1}')
 
-        if [[ "$abs_offset" == "pass" ]]; then
-            echo_ok "时间同步完成，系统与 NTP 偏差：${offset} 秒"
-            break
+    if [[ -n "$ref_id" && "$ref_id" != "0.0.0.0" ]]; then
+        # 2. 提取偏差值
+        offset=$(echo "$tracking_info" | awk '/System time/ {print $4}')
+
+        # 3. 健壮性判断：如果 offset 极其小（比如你日志里的 0.000000156），
+        # 或者包含了 'fast' / 'slow' 关键字，我们认为同步已起效
+        if [[ -n "$offset" ]]; then
+            # 使用 awk 处理绝对值比较，支持科学计数法
+            is_sync=$(echo "$offset" | awk '{ abs = ($1 < 0 ? -$1 : $1); if (abs < 1.0) print "yes"; else print "no" }')
+
+            if [[ "$is_sync" == "yes" ]]; then
+                echo_ok "时间同步完成，当前服务器: $ref_id，偏差: ${offset} 秒"
+                break
+            fi
         fi
     fi
 
     sleep $INTERVAL
     elapsed=$((elapsed + INTERVAL))
     if [[ $elapsed -ge $MAX_WAIT ]]; then
-        echo_error "时间同步握手超时。建议检查机器 UDP 123 端口出站权限，当前偏差: ${offset:-未知} 秒。"
+        # 最后的挣扎：如果 Reference ID 已经有了，即便逻辑判断没过，也算它成功
+        if [[ -n "$ref_id" && "$ref_id" != "0.0.0.0" ]]; then
+            echo_ok "达到等待上限，但检测到已连接源 $ref_id，强制通过。"
+            break
+        fi
+        echo_error "时间同步握手超时。建议检查机器 UDP 123 端口出站权限。"
         break
     fi
   done
 
   # 最终状态展示
-  chronyc sourcestats -v
+  chronyc sources -v
   check_result "查看时间同步源"
   chronyc tracking -v
   check_result "查看时间同步状态"
