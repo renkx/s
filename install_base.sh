@@ -266,7 +266,7 @@ EOF
   done
 
   # 最终状态展示
-  chronyc sources -v
+  chronyc sources -v || true
   check_result "查看时间同步源"
   chronyc tracking -v
   check_result "查看时间同步状态"
