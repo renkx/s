@@ -68,6 +68,8 @@ EOF
 [recidive]
 enabled = true
 logpath  = /var/log/fail2ban.log
+# 强制使用 polling 模式读取物理日志，这里不用systemd
+backend  = polling
 filter   = recidive
 # 既然是惯犯，直接封锁所有端口，不给任何试探机会，所以用的 allports
 banaction = iptables-ipset-proto6-allports
@@ -77,8 +79,15 @@ bantime  = 365d
 findtime  = 1d
 maxretry = 2
 EOF
-  # 重启fail2ban使规则生效
-  systemctl restart fail2ban >/dev/null 2>&1
+
+  # 只有当日志文件不存在时才初始化，避免干扰已有的日志流
+  if [ ! -f /var/log/fail2ban.log ]; then
+      echo_info "初始化 Fail2ban 日志文件..."
+      touch /var/log/fail2ban.log
+      chmod 640 /var/log/fail2ban.log
+      # 确保属组正确（在 Debian/Ubuntu 下通常是 adm 组有权查看日志）
+      chown root:adm /var/log/fail2ban.log 2>/dev/null
+  fi
 
   # --- 4. 系统环境修复 ---
   # [原有注释] C. 幂等修复 Hostname 解析，防止 Fail2ban 启动时报 "无法解析主机" 的错误
@@ -87,15 +96,11 @@ EOF
       echo "127.0.0.1    $hn" >> /etc/hosts
   fi
 
-  # --- 5. SSH 监控联动 ---
-  # [理解] 联动判断：仅在内核 SSH 端口与 Fail2ban 配置不一致时才重写并重启
+  # [理解] SSH 监控联动 (直接执行覆盖，确保配置实时更新)
   local current_port=$(get_current_ssh_port)
-  local old_f2b_port=$(grep -E "^port\s*=" /etc/fail2ban/jail.d/sshd.local 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ')
-
-  if [ "$current_port" != "$old_f2b_port" ]; then
-      echo_warn "检测到 SSH 端口变更 (旧: $old_f2b_port -> 新: $current_port)，正在同步 Fail2ban..."
-      # [原有注释] B. 写入 SSH 特定封禁配置 (sshd.local) 特定 Jail 的配置会覆盖 [DEFAULT] 中的同名参数
-      cat <<EOF >/etc/fail2ban/jail.d/sshd.local
+  echo_info "正在同步 SSH fail2ban 配置 (端口: $current_port)..."
+  # 写入 SSH 特定封禁配置 (sshd.local) 特定 Jail 的配置会覆盖 [DEFAULT] 中的同名参数
+  cat <<EOF >/etc/fail2ban/jail.d/sshd.local
 [sshd]
 enabled = true
 port = $current_port
@@ -106,11 +111,9 @@ findtime  = 30m
 # 允许失败的最大次数
 maxretry = 3
 EOF
+
       systemctl restart fail2ban >/dev/null 2>&1
       echo_ok "Fail2ban 监控规则已同步更新"
-  else
-      echo_ok "Fail2ban 状态: SSH 端口 $current_port 未变化，跳过重启"
-  fi
 
   # --- 6. UFW 状态重置 ---
   # [原有注释] 设定 UFW 默认规则：拒绝所有进站流量，允许所有出站流量
