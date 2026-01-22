@@ -149,7 +149,7 @@ EOF
   cat <<EOF >/etc/fail2ban/jail.d/nginx-upstream-connect.local
 [nginx_upstream_connect]
 enabled = true
-port = http,https
+port = 80,443
 # 默认只有tcp，这块需要封禁全协议
 filter = nginx-custom-upstream-connect
 logpath = $host_nginx_error_log
