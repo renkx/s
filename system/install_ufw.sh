@@ -77,8 +77,8 @@ banaction = iptables-ipset-proto6-allports
 protocol = all
 # 封禁时长：365天
 bantime  = 365d
-# 检测窗口：24小时内达到 maxretry 次则执行封禁
-findtime  = 1d
+# 检测窗口：7天内达到 maxretry 次则执行封禁
+findtime  = 7d
 maxretry = 2
 EOF
 
@@ -111,7 +111,7 @@ bantime  = 1h
 # 检测窗口：30分钟内达到 maxretry 次则执行封禁
 findtime  = 30m
 # 允许失败的最大次数
-maxretry = 3
+maxretry = 2
 EOF
 
       systemctl restart fail2ban >/dev/null 2>&1
