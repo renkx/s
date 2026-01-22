@@ -359,7 +359,7 @@ menu() {
     echo -e "${Green}0.${Font} 退出"
     echo -e "${Green}1.${Font} 系统优化"
     echo -e "${Green}2.${Font} 安装 系统基础"
-    echo -e "${Green}3.${Font} 安装 UFW、Fail2ban 和 ipSet"
+    echo -e "${Green}3.${Font} 安装 ufw、fail2ban"
     echo -e "${Green}4.${Font} 安装 docker"
     echo -e "${Green}5.${Font} 安装 on-my-zsh"
     echo -e "${Green}6.${Font} 更新 motd"
