@@ -151,9 +151,13 @@ EOF
 enabled = true
 port = http,https
 # 默认只有tcp，这块需要封禁全协议
-protocol = all
 filter = nginx-custom-upstream-connect
 logpath = $host_nginx_error_log
+# 关键：我们不再用 protocol = all，而是显式调用两次动作
+# 第一次封锁 TCP 的 80,443
+# 第二次封锁 UDP 的 80,443 (支持 HTTP/3)
+action = iptables-ipset-proto6[name=nginx_tcp, protocol=tcp, port="http,https"]
+         iptables-ipset-proto6[name=nginx_udp, protocol=udp, port="http,https"]
 backend = auto
 bantime  = 24h
 findtime = 1h
