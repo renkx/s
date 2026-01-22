@@ -136,13 +136,10 @@ EOF
 
   echo_info "写入 Nginx 异常拦截规则..."
   cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-upstream-connect.conf
-[INCLUDES]
-# 基于官方模板的过滤器
-before = nginx-error-common.conf
-
 [Definition]
-# 实现全路径、全协议通杀
-failregex = ^%(__prefix_line)s.*\[error\].*client: <HOST>.*127\.0\.0\.1:9
+# 删掉所有宏，直接用 .* 覆盖所有前缀，这是最通用的
+failregex = ^.*\[error\].*client: <HOST>.*127\.0\.0\.1:9
+ignoreregex =
 EOF
 
   # 写入 Nginx Jail 配置
