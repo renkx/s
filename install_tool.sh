@@ -365,11 +365,11 @@ menu() {
     echo -e "${Green}6.${Font} 更新 motd"
     echo -e "${Green}7.${Font} 更新 nameserver"
     echo -e "${Green}8.${Font} 清理系统垃圾"
-    echo -e "${Green}9.${Font} 虚拟内存设置"
+    echo -e "${Green}100.${Font} 虚拟内存设置"
     echo -e "${Green}110.${Font} 安装acme命令动态配置域名证书"
     echo -e "${Green}120.${Font} 安装docker容器自动更新"
 
-    echo -e "${Green}666.${Font} 一键 1、2、3、4、5、6、7"
+    echo -e "${Green}666.${Font} 一键 1、2、3、4、5、6、7、8"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
