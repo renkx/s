@@ -73,6 +73,8 @@ backend  = polling
 filter   = recidive
 # 既然是惯犯，直接封锁所有端口，不给任何试探机会，所以用的 allports
 banaction = iptables-ipset-proto6-allports
+# 默认只有tcp，这块需要封禁全协议
+protocol = all
 # 封禁时长：365天
 bantime  = 365d
 # 检测窗口：24小时内达到 maxretry 次则执行封禁
