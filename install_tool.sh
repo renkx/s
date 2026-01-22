@@ -327,7 +327,7 @@ action_logic() {
     8)
         clean_system_rubbish
         ;;
-    9)
+    100)
         update_swap
         ;;
     110)
