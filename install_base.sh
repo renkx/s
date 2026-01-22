@@ -368,61 +368,12 @@ fi
 
 }
 
-# 安装防爆程序 fail2ban
-install_fail2ban() {
-
-  ${INS} install fail2ban -y
-  judge "安装 防爆程序 fail2ban"
-
-  # Fail2ban configurations.
-  # Reference: https://github.com/fail2ban/fail2ban/issues/2756
-  #            https://www.mail-archive.com/debian-bugs-dist@lists.debian.org/msg1879390.html
-  if ! grep -qE "^[^#]*allowipv6\s*=\s*auto" "/etc/fail2ban/fail2ban.conf"; then
-      sed -i '/^\[Definition\]/a allowipv6 = auto' /etc/fail2ban/fail2ban.conf;
-  fi
-  sed -ri 's/^backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf;
-
-  # 获取ssh端口
-  current_port=$(ss -tlnp | grep sshd | awk '{print $4}' | grep -oE '[0-9]+$' | head -n1)
-  current_port=${current_port:-22}
-  # 清除默认配置
-  rm -rf /etc/fail2ban/jail.d/defaults-debian.conf
-  # 设置ssh配置
-  cat <<EOF >/etc/fail2ban/jail.d/sshd.local
-[sshd]
-enabled = true
-port = $current_port
-# 忽略 IP/段
-ignoreip = 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1/8 ::1
-# 封禁的时长（天）
-bantime  = 30d
-# 此时长（分）内达到 maxretry 次就执行封禁动作
-findtime  = 30m
-# 匹配到的阈值（允许失败次数）
-maxretry = 2
-EOF
-
-  systemctl enable fail2ban
-  systemctl restart fail2ban
-  systemctl status fail2ban
-  # 设置hostname解析，否则fail2ban会出现报错
-  # 获取当前 hostname
-  hostname=$(hostname)
-  # 如果 /etc/hosts 中不存在这一行才追加
-  if ! grep -q "127.0.0.1[[:space:]]\+$hostname" /etc/hosts; then
-      echo "127.0.0.1    $hostname" >> /etc/hosts
-      echo_ok "已添加 hostname 解析到 /etc/hosts"
-  fi
-  echo_ok "防爆程序 fail2ban 设置完成"
-}
-
 install_base() {
   is_root
   check_system
   chrony_install
   dependency_install
   rc_local_enable
-  install_fail2ban
 }
 
 install_base

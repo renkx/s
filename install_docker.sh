@@ -101,74 +101,9 @@ check_system() {
 is_root() {
   if [ 0 == $UID ]; then
     echo_ok "当前用户是root用户，进入安装流程"
-    sleep 1
   else
     echo_error "当前用户不是root用户，请切换到root用户后重新执行脚本"
     exit 1
-  fi
-}
-
-iptables_open() {
-  iptables -P INPUT ACCEPT
-  iptables -P FORWARD ACCEPT
-  iptables -P OUTPUT ACCEPT
-  iptables -F
-
-  ip6tables -P INPUT ACCEPT
-  ip6tables -P FORWARD ACCEPT
-  ip6tables -P OUTPUT ACCEPT
-  ip6tables -F
-}
-
-# 防火墙处理
-setup_firewall() {
-  # iptables-persistent 是一个用于在 Debian 系统上保存和恢复 iptables 防火墙规则的工具
-  # 它允许你在系统重启后保留之前设置的 iptables 规则，从而确保防火墙在重新启动后仍然有效。
-  if dpkg -l | grep -q iptables-persistent; then
-    echo_ok "防火墙已安装"
-  else
-    # 关闭所有交互界面 让包管理器使用 默认值（debconf 中预设的默认选项）来安装
-    export DEBIAN_FRONTEND=noninteractive
-
-    echo_ok "安装防火墙，进入安装流程.."
-    iptables_open
-    remove iptables-persistent
-    check_result "卸载原有的 iptables-persistent"
-
-    remove ufw
-    check_result "卸载 ufw"
-
-    apt update -y && apt install -y iptables-persistent
-    check_result "安装 iptables-persistent"
-
-    rm -f /etc/iptables/rules.v4
-    echo_ok "删除原有的 /etc/iptables/rules.v4"
-
-    # 获取ssh端口
-    current_port=$(ss -tlnp | grep sshd | awk '{print $4}' | grep -oE '[0-9]+$' | head -n1)
-    current_port=${current_port:-22}
-
-    cat > /etc/iptables/rules.v4 << EOF
-*filter
-:INPUT ACCEPT [0:0]
-:FORWARD ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
--A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
--A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
--A INPUT -i lo -j ACCEPT
--A FORWARD -i lo -j ACCEPT
--A INPUT -p tcp --dport $current_port -j ACCEPT
-COMMIT
-EOF
-    check_result "写入iptables规则到 /etc/iptables/rules.v4"
-
-    iptables-restore < /etc/iptables/rules.v4
-    check_result "iptables-restore < /etc/iptables/rules.v4 使规则生效"
-
-    systemctl enable netfilter-persistent
-    check_result "netfilter-persistent 设置开机启动"
-
-    echo_ok "防火墙安装完成"
   fi
 }
 
@@ -209,11 +144,6 @@ check_network_env() {
 }
 
 install_docker() {
-  is_root
-  check_system
-  # 防火墙处理
-  setup_firewall
-
   # 检测网络
   check_network_env
 
@@ -322,4 +252,6 @@ EOF
     fi
 }
 
+is_root
+check_system
 install_docker

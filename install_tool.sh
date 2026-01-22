@@ -292,6 +292,11 @@ install_docker_auto_update() {
   remote_execute "docker/docker_auto_update.sh" ~/ag
 }
 
+# 安装 UFW、Fail2ban 和 ipSet
+install_ufw() {
+  remote_execute "system/install_ufw.sh"
+}
+
 # 将所有功能逻辑封装到一个独立的函数中
 action_logic() {
     case $1 in
@@ -305,32 +310,35 @@ action_logic() {
         install_base
         ;;
     3)
-        install_docker
+        install_ufw
         ;;
     4)
-        install_on_my_zsh
+        install_docker
         ;;
     5)
-        update_motd
+        install_on_my_zsh
         ;;
     6)
-        update_nameserver
+        update_motd
         ;;
     7)
-        clean_system_rubbish
+        update_nameserver
         ;;
     8)
-        update_swap
+        clean_system_rubbish
         ;;
     9)
+        update_swap
+        ;;
+    110)
         install_acme
         ;;
-    10)
+    120)
         install_docker_auto_update
         ;;
-    333)
+    666)
         echo_info "🚀 开始全自动化安装与优化..."
-        for cmd in optimizing_system install_base install_docker install_on_my_zsh update_motd update_nameserver clean_system_rubbish; do
+        for cmd in optimizing_system install_base install_ufw install_docker install_on_my_zsh update_motd update_nameserver clean_system_rubbish; do
             echo "------------------------------------------------------"
             echo_info "正在执行: $cmd"
             $cmd
@@ -351,16 +359,17 @@ menu() {
     echo -e "${Green}0.${Font} 退出"
     echo -e "${Green}1.${Font} 系统优化"
     echo -e "${Green}2.${Font} 安装 系统基础"
-    echo -e "${Green}3.${Font} 安装 docker"
-    echo -e "${Green}4.${Font} 安装 on-my-zsh"
-    echo -e "${Green}5.${Font} 更新 motd"
-    echo -e "${Green}6.${Font} 更新 nameserver"
-    echo -e "${Green}7.${Font} 清理系统垃圾"
-    echo -e "${Green}8.${Font} 虚拟内存设置"
-    echo -e "${Green}9.${Font} 安装acme命令动态配置域名证书"
-    echo -e "${Green}10.${Font} 安装docker容器自动更新"
+    echo -e "${Green}3.${Font} 安装 UFW、Fail2ban 和 ipSet"
+    echo -e "${Green}4.${Font} 安装 docker"
+    echo -e "${Green}5.${Font} 安装 on-my-zsh"
+    echo -e "${Green}6.${Font} 更新 motd"
+    echo -e "${Green}7.${Font} 更新 nameserver"
+    echo -e "${Green}8.${Font} 清理系统垃圾"
+    echo -e "${Green}9.${Font} 虚拟内存设置"
+    echo -e "${Green}110.${Font} 安装acme命令动态配置域名证书"
+    echo -e "${Green}120.${Font} 安装docker容器自动更新"
 
-    echo -e "${Green}333.${Font} 一键 1、2、3、4、5、6、7"
+    echo -e "${Green}666.${Font} 一键 1、2、3、4、5、6、7"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
