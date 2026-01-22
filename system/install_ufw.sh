@@ -141,8 +141,8 @@ EOF
 before = nginx-error-common.conf
 
 [Definition]
-# 删掉多余空格和末尾引号，实现全路径、全协议通杀
-failregex = ^%(__prefix_line)sconnect\(\) failed.*client: <HOST>.*127\.0\.0\.1:9
+# 实现全路径、全协议通杀
+failregex = ^%(__prefix_line)s.*\[error\].*client: <HOST>.*127\.0\.0\.1:9
 EOF
 
   # 写入 Nginx Jail 配置
@@ -150,6 +150,8 @@ EOF
 [nginx_upstream_connect]
 enabled = true
 port = http,https
+# 默认只有tcp，这块需要封禁全协议
+protocol = all
 filter = nginx-custom-upstream-connect
 logpath = $host_nginx_error_log
 backend = auto
