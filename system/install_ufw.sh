@@ -147,8 +147,6 @@ EOF
 [nginx_upstream_connect]
 enabled = true
 port = 80,443
-# 默认只有tcp，这块需要封禁全协议
-protocol = all
 filter = nginx-custom-upstream-connect
 logpath = $host_nginx_error_log
 backend = auto
