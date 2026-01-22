@@ -141,9 +141,8 @@ EOF
 before = nginx-error-common.conf
 
 [Definition]
-# 逻辑：只要这一行包含 connect() failed，且 client 后面跟着 IP，且 upstream 包含 127.0.0.1:9
-# 无论中间是什么废话，全部抓取
-failregex = ^%(__prefix_line)sconnect\(\) failed .* client: <HOST>, .* upstream: ".*127\.0\.0\.1:9"
+# 删掉多余空格和末尾引号，实现全路径、全协议通杀
+failregex = ^%(__prefix_line)sconnect\(\) failed.*client: <HOST>.*127\.0\.0\.1:9
 EOF
 
   # 写入 Nginx Jail 配置
