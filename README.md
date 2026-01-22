@@ -49,10 +49,10 @@ curl -sSL https://gitee.com/renkx/ss/raw/main/acme/acme.sh | bash -s -- ~/ag/con
 bash <(curl -sSL https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcpx.sh)
 
 ## 程序安装 github
-curl -sSL https://raw.githubusercontent.com/renkx/s/main/install_tool.sh | bash -s --
+curl -sSL "https://raw.githubusercontent.com/renkx/s/main/install_tool.sh?v=$(date +%s)" | bash -s --
 
 ## 程序安装 gitee
-curl -sSL https://gitee.com/renkx/ss/raw/main/install_tool.sh | bash -s --
+curl -sSL "https://gitee.com/renkx/ss/raw/main/install_tool.sh?v=$(date +%s)" | bash -s --
 ```
 
 ##### iptablesUtils [github](https://github.com/arloor/iptablesUtils)
