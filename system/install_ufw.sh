@@ -135,13 +135,15 @@ EOF
   chmod 666 "$host_nginx_access_log"
 
   echo_info "写入 Nginx 异常拦截规则..."
-  cat <<EOF >/etc/fail2ban/filter.d/nginx-custom-upstream-connect.conf
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-upstream-connect.conf
 [INCLUDES]
 # 基于官方模板的过滤器
 before = nginx-error-common.conf
 
 [Definition]
-failregex = ^%(__prefix_line)sconnect\(\) failed .* while connecting to upstream, client: <HOST>, .* upstream: "127.0.0.1:9"
+# 逻辑：只要这一行包含 connect() failed，且 client 后面跟着 IP，且 upstream 包含 127.0.0.1:9
+# 无论中间是什么废话，全部抓取
+failregex = ^%(__prefix_line)sconnect\(\) failed .* client: <HOST>, .* upstream: ".*127\.0\.0\.1:9"
 EOF
 
   # 写入 Nginx Jail 配置
