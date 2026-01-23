@@ -11,14 +11,27 @@ judge() { if [ $? -eq 0 ]; then echo_ok "$1 成功"; else echo "[ERROR] $1 失�
 # --- 全局变量获取 ---
 # 获取当前 SSH 服务监听的端口，若获取不到则默认为 22 (实时从内核获取)
 get_current_ssh_port() {
-  local port=$(ss -tlnp | grep sshd | awk '{print $4}' | grep -oE '[0-9]+$' | head -n1)
+  local port
+  port=$(ss -tlnp | grep sshd | awk '{print $4}' | grep -oE '[0-9]+$' | head -n1)
   echo "${port:-22}"
 }
 
-# --- 核心同步与维护逻辑 ---
-sync_all() {
-  echo -e "\n\033[1m>>> 正在启动自动化安全配置同步 <<<\033[0m\n"
+# --- 同步 Filter 配置 ---
+sync_filters() {
 
+  echo_info "写入 Nginx 异常拦截规则..."
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-nine.conf
+[Definition]
+# 删掉所有宏，直接用 .* 覆盖所有前缀，这是最通用的
+failregex = ^.*\[error\].*client: <HOST>.*127\.0\.0\.1:9
+ignoreregex =
+EOF
+
+  echo_ok "fail2ban 过滤器同步完成"
+}
+
+# --- 同步 logrotate 配置 ---
+sync_logrotate() {
   # 冥等性 创建logrotate定时执行配置补丁目录
   mkdir -p /etc/systemd/system/logrotate.timer.d/
   # 覆盖 /lib/systemd/system/logrotate.timer 的默认配置
@@ -42,9 +55,43 @@ EOF
   systemctl restart logrotate.timer
   echo_ok "已将 logrotate.timer 检查频率提升至每小时 (带 20min 随机延迟)"
 
+  # 如果宿主机没有 Nginx 的轮转配置，则创建一个通用的
+  echo_info "写入 logrotate 文件：/etc/logrotate.d/nginx-docker ..."
+  cat <<EOF >/etc/logrotate.d/nginx-docker
+/var/log/nginx/*.log {
+  # 每天生成轮转
+  daily
+  # 如果日志超过 20M，提前轮转防止撑爆磁盘
+  size 20M
+  rotate 5
+  missingok
+  compress
+  # 延迟压缩，确保 fail2ban 处理完最后的记录
+  delaycompress
+  notifempty
+  # 权限对齐
+  # 666 确保容器内 nginx 用户和宿主机 fail2ban 都能读写新创建的文件
+  create 666 root root
+  sharedscripts
+  postrotate
+      # 容器内日志重开
+      docker exec nginx nginx -s reopen 2>/dev/null || true
+      # 宿主机 Fail2Ban 文件句柄刷新
+      fail2ban-client flushlogs 1>/dev/null || true
+  endscript
+}
+EOF
+}
+
+# --- 核心同步与维护逻辑 ---
+sync_all() {
+  echo -e "\n\033[1m>>> 正在启动自动化安全配置同步 <<<\033[0m\n"
+  # 同步 logrotate 配置
+  sync_logrotate
+
   # --- 环境清理 (幂等性保障) ---
-  # [原有注释] 幂等处理：如果检测到旧的 iptables-persistent，则彻底卸载清理，避免干扰 UFW
-  # [理解] 必须清理 netfilter-persistent，否则重启后旧规则可能覆盖 UFW 规则
+  # 如果检测到旧的 iptables-persistent，则彻底卸载清理，避免干扰 UFW
+  # 必须清理 netfilter-persistent，否则重启后旧规则可能覆盖 UFW 规则
   if dpkg -l | grep -q "iptables-persistent"; then
     echo_info "检测到旧的防火墙工具，正在卸载并迁移至 UFW..."
     export DEBIAN_FRONTEND=noninteractive
@@ -53,8 +100,8 @@ EOF
   fi
 
   # --- 核心组件安装 ---
-  # [原有注释] 安装 UFW、Fail2ban 和 ipset 工具（ipset 是实现高性能封禁的关键）
-  # [理解] 自动检测安装缺失组件 (装过了就不再重复安装)
+  # 安装 UFW、Fail2ban 和 ipset 工具（ipset 是实现高性能封禁的关键）
+  # 自动检测安装缺失组件 (装过了就不再重复安装)
   local deps=(ufw fail2ban ipset)
   local missing=()
   for pkg in "${deps[@]}"; do
@@ -67,152 +114,19 @@ EOF
     judge "核心组件安装"
   fi
 
-  # --- Fail2ban 全局配置 ---
-  # [原有注释] A. 写入全局默认配置 (00-default.local) 这里定义了全局默认动作、日志获取方式以及 IPv6 支持
-  # [理解] allowipv6=auto 配合全局 banaction，确保所有同步开启的端口都受 ipset 高性能保护
-  cat <<EOF >/etc/fail2ban/jail.d/00-default.local
-[Definition]
-# 开启对 IPv6 地址的自动检测和封禁支持
-allowipv6 = auto
-
-[DEFAULT]
-# auto 会按顺序尝试 pyinotify 和 polling 来处理日志文件
-# pyinotify 更好，是一个 Python 库，需要安装
-backend = auto
-# 全局默认动作：使用 ipset 进行精准端口拦截 (不限端口则使用 iptables-ipset-proto6-allports)
-banaction = iptables-ipset-proto6
-# 白名单 IP，避免封禁本地或局域网段
-ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
-EOF
-
-  # 写入累犯封禁配置 (01-recidive.local)
-  # [理解] 这是一个全局通用的监狱，独立于特定服务。它监控 fail2ban.log。
-  # 只要任何 Jail (sshd, nginx等) 封禁了某个 IP，它就会记录并累计。
-  cat <<EOF >/etc/fail2ban/jail.d/01-recidive.local
-[recidive]
-enabled = true
-logpath  = /var/log/fail2ban.log
-filter   = recidive
-# 既然是惯犯，直接封锁所有端口，不给任何试探机会，所以用的 allports
-banaction = iptables-ipset-proto6-allports
-# 默认只有tcp，这块需要封禁全协议
-protocol = all
-# 封禁时长：365天
-bantime  = 365d
-# 检测窗口：7天内达到 maxretry 次则执行封禁
-findtime  = 7d
-maxretry = 2
-EOF
-
-  # 只有当日志文件不存在时才初始化，避免干扰已有的日志流
-  if [ ! -f /var/log/fail2ban.log ]; then
-      echo_info "初始化 Fail2ban 日志文件..."
-      touch /var/log/fail2ban.log
-      chmod 640 /var/log/fail2ban.log
-      # 确保属组正确（在 Debian/Ubuntu 下通常是 adm 组有权查看日志）
-      chown root:adm /var/log/fail2ban.log 2>/dev/null
-  fi
-
-  # --- 4. 系统环境修复 ---
-  # [原有注释] C. 幂等修复 Hostname 解析，防止 Fail2ban 启动时报 "无法解析主机" 的错误
-  hn=$(hostname)
-  if ! grep -q "127.0.0.1.*$hn" /etc/hosts; then
-      echo "127.0.0.1    $hn" >> /etc/hosts
-  fi
-
-  # [理解] SSH 监控联动 (直接执行覆盖，确保配置实时更新)
-  local current_port=$(get_current_ssh_port)
-  echo_info "正在同步 SSH fail2ban 配置 (端口: $current_port)..."
-  # 写入 SSH 特定封禁配置 (sshd.local) 特定 Jail 的配置会覆盖 [DEFAULT] 中的同名参数
-  cat <<EOF >/etc/fail2ban/jail.d/sshd.local
-[sshd]
-enabled = true
-port = $current_port
-# 设定日志抓取后端为 systemd，去读取系统的 journald，sshd需要这个
-backend = systemd
-# 封禁时长：1小时
-bantime  = 1h
-# 检测窗口：30分钟内达到 maxretry 次则执行封禁
-findtime  = 30m
-# 允许失败的最大次数
-maxretry = 2
-EOF
-
-  # --- Nginx 环境预热与存量对齐 ---
-  local host_nginx_dir="/var/log/nginx"
-  local host_nginx_error_log="$host_nginx_dir/error_docker.log"
-  local host_nginx_access_log="$host_nginx_dir/access_docker.log"
-  echo_info "同步 Nginx 日志环境 (处理存量与预热)..."
-
-  [ ! -d "$host_nginx_dir" ] && mkdir -p "$host_nginx_dir"
-  chmod 755 "$host_nginx_dir"
-  [ ! -f "$host_nginx_error_log" ] && touch "$host_nginx_error_log"
-  chmod 666 "$host_nginx_error_log"
-  [ ! -f "$host_nginx_access_log" ] && touch "$host_nginx_access_log"
-  chmod 666 "$host_nginx_access_log"
-
-  echo_info "写入 Nginx 异常拦截规则..."
-  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-upstream-connect.conf
-[Definition]
-# 删掉所有宏，直接用 .* 覆盖所有前缀，这是最通用的
-failregex = ^.*\[error\].*client: <HOST>.*127\.0\.0\.1:9
-ignoreregex =
-EOF
-
-  # 写入 Nginx Jail 配置
-  cat <<EOF >/etc/fail2ban/jail.d/nginx-upstream-connect.local
-[nginx_upstream_connect]
-enabled = true
-port = 80,443
-filter = nginx-custom-upstream-connect
-logpath = $host_nginx_error_log
-backend = auto
-bantime  = 24h
-findtime = 1h
-maxretry = 2
-EOF
-
-  # 如果宿主机没有 Nginx 的轮转配置，则创建一个通用的
-  if [ ! -f /etc/logrotate.d/nginx-docker ]; then
-    cat <<EOF >/etc/logrotate.d/nginx-docker
-$host_nginx_dir/*.log {
-    # 每天生成轮转
-    daily
-    # 如果日志超过 20M，提前轮转防止撑爆磁盘
-    size 20M
-    rotate 5
-    missingok
-    compress
-    # 延迟压缩，确保 fail2ban 处理完最后的记录
-    delaycompress
-    notifempty
-    # 权限对齐
-    # 666 确保容器内 nginx 用户和宿主机 fail2ban 都能读写新创建的文件
-    create 666 root root
-    sharedscripts
-    postrotate
-        # 容器内日志重开
-        docker exec nginx nginx -s reopen 2>/dev/null || true
-        # 宿主机 Fail2Ban 文件句柄刷新
-        fail2ban-client flushlogs 1>/dev/null || true
-    endscript
-}
-EOF
-  fi
-
-      systemctl restart fail2ban >/dev/null 2>&1
-      echo_ok "Fail2ban 监控规则已同步更新"
-
   # ---  UFW 状态重置 ---
-  # [原有注释] 设定 UFW 默认规则：拒绝所有进站流量，允许所有出站流量
-  # [理解] reset 会清空所有规则并关闭 UFW 状态，确保每次同步都是“一张白纸”，防止规则堆积
+  # 设定 UFW 默认规则：拒绝所有进站流量，允许所有出站流量
+  # reset 会清空所有规则并关闭 UFW 状态，确保每次同步都是“一张白纸”，防止规则堆积
   echo_info "正在重置 UFW 规则库并应用默认策略..."
   ufw --force reset > /dev/null
   ufw --force default deny incoming > /dev/null
   ufw --force default allow outgoing > /dev/null
 
   # --- SSH 端口放行 ---
-  # [原有注释] 开启必要端口：SSH
+  # 开启必要端口：SSH
+  local current_port
+  current_port=$(get_current_ssh_port)
+  echo_info "获取 SSH 当前端口: $current_port ..."
   ufw allow "$current_port/tcp" comment 'SSH (Auto-sync)' > /dev/null
 
   # --- 动态扫描并同步公网端口 ---
@@ -246,11 +160,118 @@ EOF
   # [理解] reset 之后必须重新 enable 才能使内核开始拦截并实现开机自启
   echo "y" | ufw enable > /dev/null
 
+  echo_info "正在清理并整合 Fail2ban 配置..."
+  # 清理之前脚本产生的碎片文件
+  rm -f /etc/fail2ban/jail.d/*.local
+  rm -f /etc/fail2ban/jail.d/*.conf
+
+  # 只有当日志文件不存在时才初始化，避免干扰已有的日志流
+  if [ ! -f /var/log/fail2ban.log ]; then
+      echo_info "初始化 Fail2ban 日志文件..."
+      touch /var/log/fail2ban.log
+      chmod 640 /var/log/fail2ban.log
+      # 确保属组正确（在 Debian/Ubuntu 下通常是 adm 组有权查看日志）
+      chown root:adm /var/log/fail2ban.log 2>/dev/null
+  fi
+
+  # 幂等修复 Hostname 解析，防止 Fail2ban 启动时报 "无法解析主机" 的错误
+  hn=$(hostname)
+  if ! grep -q "127.0.0.1.*$hn" /etc/hosts; then
+      echo_info "修复 Hostname 解析 ..."
+      echo "127.0.0.1    $hn" >> /etc/hosts
+  fi
+
+  # --- Nginx 环境预热与存量对齐 ---
+  local host_nginx_dir="/var/log/nginx"
+  local host_nginx_error_log="$host_nginx_dir/error_docker.log"
+  local host_nginx_access_log="$host_nginx_dir/access_docker.log"
+  echo_info "同步 Nginx 日志环境 (处理存量与预热)..."
+
+  [ ! -d "$host_nginx_dir" ] && mkdir -p "$host_nginx_dir"
+  chmod 755 "$host_nginx_dir"
+  [ ! -f "$host_nginx_error_log" ] && touch "$host_nginx_error_log"
+  chmod 666 "$host_nginx_error_log"
+  [ ! -f "$host_nginx_access_log" ] && touch "$host_nginx_access_log"
+  chmod 666 "$host_nginx_access_log"
+
+  # 同步 Filter 配置
+  sync_filters
+
+  # --- Fail2ban jail 配置 ---
+  # allowipv6=auto 配合全局 banaction，确保所有同步开启的端口都受 ipset 高性能保护
+  cat <<EOF >/etc/fail2ban/jail.d/00-default.local
+[Definition]
+# 开启对 IPv6 地址的自动检测和封禁支持
+allowipv6 = auto
+
+[DEFAULT]
+# auto 会按顺序尝试 pyinotify 和 polling 来处理日志文件
+# pyinotify 更好，是一个 Python 库，需要安装
+backend = auto
+# 全局默认动作：使用 ipset 进行精准端口拦截 (不限端口则使用 iptables-ipset-proto6-allports)
+banaction = iptables-ipset-proto6
+# 白名单 IP，避免封禁本地或局域网段
+ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
+
+[sshd]
+enabled = true
+port = $current_port
+# 设定日志抓取后端为 systemd，去读取系统的 journald，sshd需要这个
+backend = systemd
+# 封禁时长：30天
+bantime = 30d
+# 检测窗口：30分钟内达到 maxretry 次则执行封禁
+findtime = 30m
+# 允许失败的最大次数
+maxretry = 2
+
+[nginx-nine]
+enabled = true
+# 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
+# 2. 使用数字端口 80,443 避免服务名解析失败
+action = iptables-ipset-proto6[name=nginx_tcp, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx_udp, protocol=udp, port="80,443"]
+filter = nginx-custom-nine
+logpath = $host_nginx_error_log
+backend = auto
+bantime = 30d
+findtime = 1h
+maxretry = 2
+EOF
+
+  # 先禁用-----------------------------
+  # 写入累犯封禁配置 (01-recidive.local)
+  # 这是一个全局通用的监狱，独立于特定服务。它监控 fail2ban.log。
+  # 只要任何 Jail (sshd, nginx等) 封禁了某个 IP，它就会记录并累计。
+  cat <<EOF >/dev/null
+[recidive]
+enabled = true
+logpath = /var/log/fail2ban.log
+filter = recidive
+# 既然是惯犯，直接封锁所有端口，不给任何试探机会，所以用的 allports
+banaction = iptables-ipset-proto6-allports
+# 默认只有tcp，这块需要封禁全协议，把udp也阻挡了
+protocol = all
+# 封禁时长：365天
+bantime  = 365d
+# 检测窗口：7天内达到 maxretry 次则执行封禁
+findtime  = 7d
+maxretry = 2
+EOF
+  # 先禁用-----------------------------
+
+  # 彻底停止，让 Fail2ban 释放所有内核锁
+  systemctl stop fail2ban >/dev/null 2>&1
+  # 删除 封禁历史、日志偏移量，让fail2ban根据新规则，重新扫描日志生成sqlite3
+  rm -f /var/lib/fail2ban/fail2ban.sqlite3
+  # 启动，触发“全量扫描”模式
+  systemctl start fail2ban >/dev/null 2>&1
+  echo_ok "Fail2ban 已完全重载，正在根据新规则重新扫描日志..."
+
   # 展示最终报告
   echo -e "\n\033[1m--- 当前 UFW 生效规则清单 ---\033[0m"
   ufw status | sed 's/^/  /'
   echo -e "\033[1m-----------------------------\033[0m\n"
-
   echo_ok "所有加固与端口同步操作已完成！"
 }
 
