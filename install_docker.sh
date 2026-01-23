@@ -230,8 +230,15 @@ EOF
       ## "bip": "172.17.0.1/16", # docker网段设置
       ## Docker 默认会启动一个叫 docker-proxy 的进程来处理端口转发。在高并发下，这个进程的效率远低于内核的 iptables/nftables
       ## 关闭它，强制 Docker 使用内核原生的 NAT，这样能减轻 nf_conntrack 的压力并提升性能
+      # 国内必须设置镜像，虽然拉取的国外镜像版本会跟不上。光用shell端的代理（ag）不行，Docker Daemon 内部读取不到代理参数
+      # 针对命令：docker pull、docker search 等
       cat > /etc/docker/daemon.json << EOF
 {
+  "registry-mirrors": [
+    "https://m9wl9ue4.mirror.aliyuncs.com",
+    "https://docker.xuanyuan.me",
+    "https://docker.m.daocloud.io"
+  ],
   "userland-proxy": false,
   "exec-opts": ["native.cgroupdriver=systemd"],
   "log-driver": "json-file",
@@ -243,20 +250,8 @@ EOF
 EOF
       check_result "配置 /etc/docker/daemon.json"
 
-      # 给 Docker Daemon 设置代理，光用shell端的代理（ag）不行，Docker Daemon 内部读取不到代理参数
-      # 针对命令：docker pull、docker search 等
-      mkdir -p /etc/systemd/system/docker.service.d && \
-      tee /etc/systemd/system/docker.service.d/http-proxy.conf <<EOF
-[Service]
-Environment="HTTP_PROXY=http://127.0.0.1:10801"
-Environment="HTTPS_PROXY=http://127.0.0.1:10801"
-Environment="NO_PROXY=localhost,127.0.0.1"
-EOF
-      check_result "配置 /etc/systemd/system/docker.service.d/http-proxy.conf"
-
       systemctl daemon-reload && systemctl restart docker
       judge "重启 docker 使配置生效"
-      systemctl show --property=Environment docker
     fi
 
     else
