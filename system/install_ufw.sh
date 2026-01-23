@@ -19,11 +19,28 @@ get_current_ssh_port() {
 sync_all() {
   echo -e "\n\033[1m>>> 正在启动自动化安全配置同步 <<<\033[0m\n"
 
+  # 冥等性 创建logrotate定时执行配置补丁目录
+  mkdir -p /etc/systemd/system/logrotate.timer.d/
+  # 覆盖 /lib/systemd/system/logrotate.timer 的默认配置
   # 确保 logrotate 每小时检查一次，防止突发流量撑爆磁盘
-  if [ -f /etc/cron.daily/logrotate ]; then
-      mv -f /etc/cron.daily/logrotate /etc/cron.hourly/ || true
-      echo_ok "已将 Logrotate 检查频率提升至每小时"
-  fi
+  cat <<EOF > /etc/systemd/system/logrotate.timer.d/override.conf
+[Unit]
+# 覆盖描述
+Description=Hourly rotation of log files
+
+[Timer]
+# 清除之前所有已定义的 OnCalendar 规则，否则每小时还会跑一次
+OnCalendar=
+# 每小时触发
+OnCalendar=hourly
+# 20 分钟内的随机执行
+RandomizedDelaySec=20m
+EOF
+
+  # 重载并重启服务
+  systemctl daemon-reload
+  systemctl restart logrotate.timer
+  echo_ok "已将 logrotate.timer 检查频率提升至每小时 (带 20min 随机延迟)"
 
   # --- 环境清理 (幂等性保障) ---
   # [原有注释] 幂等处理：如果检测到旧的 iptables-persistent，则彻底卸载清理，避免干扰 UFW
