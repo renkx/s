@@ -229,8 +229,8 @@ maxretry = 2
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx_tcp, protocol=tcp, port="80,443"]
-         iptables-ipset-proto6[name=nginx_udp, protocol=udp, port="80,443"]
+action = iptables-ipset-proto6[name=nginx-nine-tcp, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx-nine-udp, protocol=udp, port="80,443"]
 filter = nginx-custom-nine
 logpath = $host_nginx_error_log
 backend = auto
