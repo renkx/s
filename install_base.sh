@@ -281,7 +281,7 @@ dependency_install() {
   echo "iperf3 iperf3/start_daemon boolean false" | debconf-set-selections
 
   # DEBIAN_FRONTEND=noninteractive + -y 避免任何交互界面，放在一行 DEBIAN_FRONTEND 临时生效
-  DEBIAN_FRONTEND=noninteractive ${INS} install wget zsh vim curl net-tools lsof screen vnstat bind9-dnsutils iperf3 -y
+  DEBIAN_FRONTEND=noninteractive ${INS} install wget zsh vim curl net-tools lsof screen jq bc vnstat bind9-dnsutils iperf3 -y
   check_result "安装基础依赖"
 
   # 系统监控工具
