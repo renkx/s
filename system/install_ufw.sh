@@ -268,8 +268,6 @@ backend = auto
 banaction = iptables-ipset-proto6[blocktype=DROP]
 # 白名单 IP，避免封禁本地或局域网段
 ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
-# 定义全局 blocktype 变量
-blocktype = DROP
 
 [sshd]
 enabled = true
@@ -288,8 +286,8 @@ maxretry = 2
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-stream-nine, protocol=tcp, port="80,443", actname=nginx-stream-nine-tcp]
-         iptables-ipset-proto6[name=nginx-stream-nine, protocol=udp, port="80,443", actname=nginx-stream-nine-udp]
+action = iptables-ipset-proto6[name=nginx-stream-nine, protocol=tcp, port="80,443", actname=nginx-stream-nine-tcp, blocktype=DROP]
+         iptables-ipset-proto6[name=nginx-stream-nine, protocol=udp, port="80,443", actname=nginx-stream-nine-udp, blocktype=DROP]
 filter = nginx-stream-nine
 logpath = $nginx_stream_error_log
 backend = pyinotify
@@ -302,8 +300,8 @@ maxretry = 1
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-444, protocol=tcp, port="80,443", actname=nginx-444-tcp]
-         iptables-ipset-proto6[name=nginx-444, protocol=udp, port="80,443", actname=nginx-444-udp]
+action = iptables-ipset-proto6[name=nginx-444, protocol=tcp, port="80,443", actname=nginx-444-tcp, blocktype=DROP]
+         iptables-ipset-proto6[name=nginx-444, protocol=udp, port="80,443", actname=nginx-444-udp, blocktype=DROP]
 filter = nginx-http-444
 logpath = $nginx_http_access_log
 backend = pyinotify
@@ -316,8 +314,8 @@ maxretry = 2
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-bad-request, protocol=tcp, port="80,443", actname=nginx-bad-request-tcp]
-         iptables-ipset-proto6[name=nginx-bad-request, protocol=udp, port="80,443", actname=nginx-bad-request-udp]
+action = iptables-ipset-proto6[name=nginx-bad-request, protocol=tcp, port="80,443", actname=nginx-bad-request-tcp, blocktype=DROP]
+         iptables-ipset-proto6[name=nginx-bad-request, protocol=udp, port="80,443", actname=nginx-bad-request-udp, blocktype=DROP]
 filter = nginx-http-bad-request
 logpath = $nginx_http_access_log
 backend = pyinotify
@@ -329,8 +327,8 @@ maxretry = 3
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-cc, protocol=tcp, port="80,443", actname=nginx-cc-tcp]
-         iptables-ipset-proto6[name=nginx-cc, protocol=udp, port="80,443", actname=nginx-cc-udp]
+action = iptables-ipset-proto6[name=nginx-cc, protocol=tcp, port="80,443", actname=nginx-cc-tcp, blocktype=DROP]
+         iptables-ipset-proto6[name=nginx-cc, protocol=udp, port="80,443", actname=nginx-cc-udp, blocktype=DROP]
 filter = nginx-http-cc
 logpath = $nginx_http_access_log
 backend = pyinotify
