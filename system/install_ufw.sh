@@ -153,7 +153,7 @@ sync_all() {
   # --- 核心组件安装 ---
   # 安装 UFW、Fail2ban 和 ipset 工具（ipset 是实现高性能封禁的关键）
   # 自动检测安装缺失组件 (装过了就不再重复安装)
-  local deps=(ufw fail2ban ipset)
+  local deps=(ufw fail2ban ipset python3-pyinotify)
   local missing=()
   for pkg in "${deps[@]}"; do
     if ! dpkg -l | grep -q "ii  $pkg "; then missing+=("$pkg"); fi
@@ -265,9 +265,11 @@ allowipv6 = auto
 # pyinotify 更好，是一个 Python 库，需要安装
 backend = auto
 # 全局默认动作：使用 ipset 进行精准端口拦截 (不限端口则使用 iptables-ipset-proto6-allports)
-banaction = iptables-ipset-proto6
+banaction = iptables-ipset-proto6[blocktype=DROP]
 # 白名单 IP，避免封禁本地或局域网段
 ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
+# 定义全局 blocktype 变量
+blocktype = DROP
 
 [sshd]
 enabled = true
@@ -289,7 +291,7 @@ enabled = true
 action = iptables-ipset-proto6[name=nginx-stream-nine, protocol=tcp, port="80,443", actname=nginx-stream-nine-tcp]
          iptables-ipset-proto6[name=nginx-stream-nine, protocol=udp, port="80,443", actname=nginx-stream-nine-udp]
 filter = nginx-stream-nine
-logpath = $nginx_stream_access_log
+logpath = $nginx_stream_error_log
 backend = pyinotify
 bantime = 30d
 findtime = 1h
