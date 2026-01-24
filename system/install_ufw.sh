@@ -27,6 +27,32 @@ failregex = ^.*\[error\].*client: <HOST>.*127\.0\.0\.1:9
 ignoreregex =
 EOF
 
+  # 防恶意扫描（Bad Request）
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-bad-request.conf
+[Definition]
+# 规则说明：
+# 1. 拦截敏感文件后缀 (php, sql, env 等)
+# 2. 拦截 CMS 管理后台路径 (admin, wp-login 等)
+# 3. 拦截特定语种/API 的 POST 探测 (en, api, shop 等)
+
+failregex = ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD) [^"]+\.(?:php|asp|aspx|jsp|cgi|env|git|yml|sql|bak|tar|gz|zip|rar|sh)(?:[\s?][^"]*)? HTTP[^"]*" (?:400|401|403|404)
+            ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD) [^"]*/(?:phpmyadmin|admin|setup|manager|dashboard|wp-login|xmlrpc|actuator|config|auth|login)[^"]* HTTP[^"]*" (?:400|401|403|404)
+            ^<HOST> - \S+ \[.*\] "POST /(?:en|de|es|fr|api|shop|posts) HTTP[^"]*" 404
+
+ignoregex =
+EOF
+
+  # 防高频 CC 攻击
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-cc.conf
+[Definition]
+# 规则说明：
+# 1. 全量匹配非静态资源请求 (用于 CC 防护)
+failregex = ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD) [^"]+" (?:200|301|302|404|403|429)
+
+# 排除静态资源，避免误伤
+ignoregex = \.(?:jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|mp4|webm|map) HTTP
+EOF
+
   echo_ok "fail2ban 过滤器同步完成"
 }
 
@@ -233,10 +259,36 @@ action = iptables-ipset-proto6[name=nginx-nine-tcp, protocol=tcp, port="80,443"]
          iptables-ipset-proto6[name=nginx-nine-udp, protocol=udp, port="80,443"]
 filter = nginx-custom-nine
 logpath = $host_nginx_error_log
-backend = auto
+backend = pyinotify
 bantime = 30d
 findtime = 1h
-maxretry = 2
+maxretry = 1
+
+[nginx-bad-request]
+enabled = true
+# 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
+# 2. 使用数字端口 80,443 避免服务名解析失败
+action = iptables-ipset-proto6[name=nginx-bad-request-tcp, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx-bad-request-udp, protocol=udp, port="80,443"]
+filter = nginx-custom-bad-request
+logpath = $host_nginx_access_log
+backend = pyinotify
+bantime = 365d
+findtime = 10m
+maxretry = 3
+
+[nginx-cc]
+enabled = true
+# 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
+# 2. 使用数字端口 80,443 避免服务名解析失败
+action = iptables-ipset-proto6[name=nginx-cc-tcp, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx-cc-udp, protocol=udp, port="80,443"]
+filter = nginx-custom-cc
+logpath = $host_nginx_access_log
+backend = pyinotify
+bantime = 30d
+findtime = 300
+maxretry = 200
 EOF
 
   # 先禁用-----------------------------
