@@ -265,8 +265,8 @@ maxretry = 2
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-nine-tcp, protocol=tcp, port="80,443"]
-         iptables-ipset-proto6[name=nginx-nine-udp, protocol=udp, port="80,443"]
+action = iptables-ipset-proto6[name=nginx-nine, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx-nine, protocol=udp, port="80,443"]
 filter = nginx-custom-nine
 logpath = $host_nginx_error_log
 backend = pyinotify
@@ -279,8 +279,8 @@ maxretry = 1
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-444-tcp, protocol=tcp, port="80,443"]
-         iptables-ipset-proto6[name=nginx-444-udp, protocol=udp, port="80,443"]
+action = iptables-ipset-proto6[name=nginx-444, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx-444, protocol=udp, port="80,443"]
 filter = nginx-custom-444
 logpath = $host_nginx_access_log
 backend = pyinotify
@@ -293,8 +293,8 @@ maxretry = 2
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-bad-request-tcp, protocol=tcp, port="80,443"]
-         iptables-ipset-proto6[name=nginx-bad-request-udp, protocol=udp, port="80,443"]
+action = iptables-ipset-proto6[name=nginx-bad-request, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx-bad-request, protocol=udp, port="80,443"]
 filter = nginx-custom-bad-request
 logpath = $host_nginx_access_log
 backend = pyinotify
@@ -306,8 +306,8 @@ maxretry = 3
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-cc-tcp, protocol=tcp, port="80,443"]
-         iptables-ipset-proto6[name=nginx-cc-udp, protocol=udp, port="80,443"]
+action = iptables-ipset-proto6[name=nginx-cc, protocol=tcp, port="80,443"]
+         iptables-ipset-proto6[name=nginx-cc, protocol=udp, port="80,443"]
 filter = nginx-custom-cc
 logpath = $host_nginx_access_log
 backend = pyinotify
