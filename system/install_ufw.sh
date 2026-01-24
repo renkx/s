@@ -337,12 +337,7 @@ maxretry = 2
 EOF
   # 先禁用-----------------------------
 
-  # 彻底停止，让 Fail2ban 释放所有内核锁
-  systemctl stop fail2ban >/dev/null 2>&1
-  # 删除 封禁历史、日志偏移量，让fail2ban根据新规则，重新扫描日志生成sqlite3
-  rm -f /var/lib/fail2ban/fail2ban.sqlite3
-  # 启动，触发“全量扫描”模式
-  systemctl start fail2ban >/dev/null 2>&1
+  systemctl restart fail2ban >/dev/null 2>&1
   echo_ok "Fail2ban 已完全重载，正在根据新规则重新扫描日志..."
 
   # 展示最终报告
