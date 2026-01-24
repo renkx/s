@@ -21,7 +21,7 @@ sync_filters() {
 
   echo_info "写入 Nginx 异常拦截规则..."
   # 针对 Stream 层探测（127.0.0.1:9）
-  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-nine.conf
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-stream-nine.conf
 [Definition]
 # 正常业务绝不会转发到 9 端口，只有在 SNI 不匹配或空主机头时才触发
 failregex = ^.*\[error\].*client:\s*<HOST>.*127\.0\.0\.1:9
@@ -29,7 +29,7 @@ ignoreregex =
 EOF
 
   # 针对 HTTP 层陷阱（444）
-  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-444.conf
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-http-444.conf
 [Definition]
 # 只要状态码是 444，不管请求的是什么路径，统统抓捕
 failregex = ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD|CONNECT|PUT|DELETE) [^"]+ HTTP[^"]*" 444
@@ -37,7 +37,7 @@ ignoregex =
 EOF
 
   # 防恶意扫描（Bad Request）
-  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-bad-request.conf
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-http-bad-request.conf
 [Definition]
 # 规则说明：
 # 1. 拦截敏感文件后缀 (php, sql, env 等)
@@ -52,7 +52,7 @@ ignoregex =
 EOF
 
   # 防高频 CC 攻击
-  cat <<EOF > /etc/fail2ban/filter.d/nginx-custom-cc.conf
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-http-cc.conf
 [Definition]
 # 规则说明：
 # 1. 全量匹配非静态资源请求 (用于 CC 防护)
@@ -93,18 +93,18 @@ EOF
   # 如果宿主机没有 Nginx 的轮转配置，则创建一个通用的
   echo_info "写入 logrotate 文件：/etc/logrotate.d/nginx-docker ..."
   cat <<EOF >/etc/logrotate.d/nginx-docker
-/var/log/nginx/*.log {
+# http日志
+/var/log/nginx/http_access.log /var/log/nginx/http_error.log {
   # 每天生成轮转
   daily
   # 如果日志超过 20M，提前轮转防止撑爆磁盘
   size 20M
-  rotate 5
+  rotate 4
   missingok
   compress
   # 延迟压缩，确保 fail2ban 处理完最后的记录
   delaycompress
   notifempty
-  # 权限对齐
   # 666 确保容器内 nginx 用户和宿主机 fail2ban 都能读写新创建的文件
   create 666 root root
   sharedscripts
@@ -112,6 +112,22 @@ EOF
       # 容器内日志重开
       docker exec nginx nginx -s reopen 2>/dev/null || true
       # 宿主机 Fail2Ban 文件句柄刷新
+      fail2ban-client flushlogs 1>/dev/null || true
+  endscript
+}
+
+# stream日志
+/var/log/nginx/stream_access.log /var/log/nginx/stream_error.log {
+  daily
+  size 20M
+  rotate 2
+  missingok
+  compress
+  notifempty
+  create 666 root root
+  sharedscripts
+  postrotate
+      docker exec nginx nginx -s reopen 2>/dev/null || true
       fail2ban-client flushlogs 1>/dev/null || true
   endscript
 }
@@ -217,17 +233,22 @@ sync_all() {
   fi
 
   # --- Nginx 环境预热与存量对齐 ---
-  local host_nginx_dir="/var/log/nginx"
-  local host_nginx_error_log="$host_nginx_dir/error_docker.log"
-  local host_nginx_access_log="$host_nginx_dir/access_docker.log"
+  local nginx_log_dir="/var/log/nginx"
+  local nginx_http_error_log="$nginx_log_dir/http_error.log"
+  local nginx_http_access_log="$nginx_log_dir/http_access.log"
+  local nginx_stream_error_log="$nginx_log_dir/stream_error.log"
+  local nginx_stream_access_log="$nginx_log_dir/stream_access.log"
   echo_info "同步 Nginx 日志环境 (处理存量与预热)..."
-
-  [ ! -d "$host_nginx_dir" ] && mkdir -p "$host_nginx_dir"
-  chmod 755 "$host_nginx_dir"
-  [ ! -f "$host_nginx_error_log" ] && touch "$host_nginx_error_log"
-  chmod 666 "$host_nginx_error_log"
-  [ ! -f "$host_nginx_access_log" ] && touch "$host_nginx_access_log"
-  chmod 666 "$host_nginx_access_log"
+  [ ! -d "$nginx_log_dir" ] && mkdir -p "$nginx_log_dir"
+  chmod 755 "$nginx_log_dir"
+  [ ! -f "$nginx_http_error_log" ] && touch "$nginx_http_error_log"
+  chmod 666 "$nginx_http_error_log"
+  [ ! -f "$nginx_http_access_log" ] && touch "$nginx_http_access_log"
+  chmod 666 "$nginx_http_access_log"
+  [ ! -f "$nginx_stream_error_log" ] && touch "$nginx_stream_error_log"
+  chmod 666 "$nginx_stream_error_log"
+  [ ! -f "$nginx_stream_access_log" ] && touch "$nginx_stream_access_log"
+  chmod 666 "$nginx_stream_access_log"
 
   # 同步 Filter 配置
   sync_filters
@@ -261,14 +282,14 @@ findtime = 30m
 maxretry = 2
 
 # 针对 Stream 层探测（127.0.0.1:9）
-[nginx-nine]
+[nginx-stream-nine]
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-nine, protocol=tcp, port="80,443", actname=nginx-nine-tcp]
-         iptables-ipset-proto6[name=nginx-nine, protocol=udp, port="80,443", actname=nginx-nine-udp]
-filter = nginx-custom-nine
-logpath = $host_nginx_error_log
+action = iptables-ipset-proto6[name=nginx-stream-nine, protocol=tcp, port="80,443", actname=nginx-stream-nine-tcp]
+         iptables-ipset-proto6[name=nginx-stream-nine, protocol=udp, port="80,443", actname=nginx-stream-nine-udp]
+filter = nginx-stream-nine
+logpath = $nginx_stream_access_log
 backend = pyinotify
 bantime = 30d
 findtime = 1h
@@ -281,8 +302,8 @@ enabled = true
 # 2. 使用数字端口 80,443 避免服务名解析失败
 action = iptables-ipset-proto6[name=nginx-444, protocol=tcp, port="80,443", actname=nginx-444-tcp]
          iptables-ipset-proto6[name=nginx-444, protocol=udp, port="80,443", actname=nginx-444-udp]
-filter = nginx-custom-444
-logpath = $host_nginx_access_log
+filter = nginx-http-444
+logpath = $nginx_http_access_log
 backend = pyinotify
 # 既然是手动 return 444 的，误伤概率极低，可以设得严一点
 bantime = 30d
@@ -295,8 +316,8 @@ enabled = true
 # 2. 使用数字端口 80,443 避免服务名解析失败
 action = iptables-ipset-proto6[name=nginx-bad-request, protocol=tcp, port="80,443", actname=nginx-bad-request-tcp]
          iptables-ipset-proto6[name=nginx-bad-request, protocol=udp, port="80,443", actname=nginx-bad-request-udp]
-filter = nginx-custom-bad-request
-logpath = $host_nginx_access_log
+filter = nginx-http-bad-request
+logpath = $nginx_http_access_log
 backend = pyinotify
 bantime = 365d
 findtime = 10m
@@ -308,8 +329,8 @@ enabled = true
 # 2. 使用数字端口 80,443 避免服务名解析失败
 action = iptables-ipset-proto6[name=nginx-cc, protocol=tcp, port="80,443", actname=nginx-cc-tcp]
          iptables-ipset-proto6[name=nginx-cc, protocol=udp, port="80,443", actname=nginx-cc-udp]
-filter = nginx-custom-cc
-logpath = $host_nginx_access_log
+filter = nginx-http-cc
+logpath = $nginx_http_access_log
 backend = pyinotify
 bantime = 30d
 findtime = 300
@@ -337,7 +358,12 @@ maxretry = 2
 EOF
   # 先禁用-----------------------------
 
-  systemctl restart fail2ban >/dev/null 2>&1
+  # 彻底停止，让 Fail2ban 释放所有内核锁
+  systemctl stop fail2ban >/dev/null 2>&1
+  # 删除 封禁历史、日志偏移量，让fail2ban根据新规则，重新扫描日志生成sqlite3
+  rm -f /var/lib/fail2ban/fail2ban.sqlite3
+  # 启动，触发“全量扫描”模式
+  systemctl start fail2ban >/dev/null 2>&1
   echo_ok "Fail2ban 已完全重载，正在根据新规则重新扫描日志..."
 
   # 展示最终报告
