@@ -54,12 +54,12 @@ EOF
   # 防高频 CC 攻击
   cat <<EOF > /etc/fail2ban/filter.d/nginx-http-cc.conf
 [Definition]
-# 规则说明：
-# 1. 全量匹配非静态资源请求 (用于 CC 防护)
-failregex = ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD) [^"]+" (?:200|301|302|404|403|429)
+# 1. 增加了对 HTTP 版本的匹配，更加严谨
+# 2. 依然保留 200/3xx，作为 CC 的兜底逻辑
+failregex = ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD|OPTIONS) \S+ HTTP/\d(?:\.\d)?" (?:200|301|302|404|403|429)
 
-# 排除静态资源，避免误伤
-ignoregex = \.(?:jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|mp4|webm|map) HTTP
+# 覆盖所有常见的静态资源后缀
+ignoregex = \.(?:jpg|jpeg|png|gif|ico|css|js|woff2?|ttf|svg|mp4|webm|map|json|xml)(?:\?.*)?(?=\s|")
 EOF
 
   echo_ok "fail2ban 过滤器同步完成"
@@ -332,9 +332,12 @@ action = iptables-ipset-proto6[name=nginx-cc, protocol=tcp, port="80,443", actna
 filter = nginx-http-cc
 logpath = $nginx_http_access_log
 backend = pyinotify
-bantime = 30d
-findtime = 300
-maxretry = 200
+# 封禁 2 小时
+bantime = 2h
+# 10 分钟观察期
+findtime = 10m
+# 允许 1000 次请求 (排除掉图片 js 后，1000 次足以应对绝大多数高频)
+maxretry = 1000
 EOF
 
   # 先禁用-----------------------------
