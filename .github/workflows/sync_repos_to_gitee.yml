@@ -10,6 +10,9 @@ jobs:
   mirror:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       # 同步 ohmyzsh 官方仓库
       - name: Sync ohmyzsh
         uses: Yikun/gitee-mirror-action@master
@@ -20,6 +23,7 @@ jobs:
           dst_token: ${{ secrets.GITEE_TOKEN }}
           static_list: "ohmyzsh"
           force_update: true
+          debug: true
           clone_style: "https"
 
       # 同步 zsh-users 组织的多个插件仓库
@@ -32,4 +36,5 @@ jobs:
           dst_token: ${{ secrets.GITEE_TOKEN }}
           static_list: "zsh-autosuggestions,zsh-syntax-highlighting,zsh-history-substring-search"
           force_update: true
+          debug: true
           clone_style: "https"
