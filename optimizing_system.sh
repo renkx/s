@@ -73,136 +73,154 @@ optimizing_system() {
   # 覆盖写入 sysctl 配置，保留所有原始注释
   cat >"$SYSCTL_CONF" <<EOF
 # =========================
-# TCP/IP 核心优化
+# TCP/IP 核心优化 (BBR & 链路适配)
 # =========================
-# 禁止保存 TCP RTT/带宽指标，避免旧连接影响新连接
+# 禁止保存 TCP RTT/带宽指标，让 BBR 每次重新探测，适合网络环境变化大的情况
 net.ipv4.tcp_no_metrics_save=1
-# 禁用 ECN 拥塞标记，保证兼容性
+# 禁用 ECN。虽然 ECN 是好技术，但在跨境链路上经常被运营商干扰，禁用可增加稳定性
 net.ipv4.tcp_ecn=0
-# 禁用 F-RTO，减少误触发重传
+# 禁用 F-RTO，在 BBR 算法下通常不需要，减少干扰
 net.ipv4.tcp_frto=0
-# 开启 MTU 探测，防止跨国大包黑洞
+# 开启 MTU 探测，这是 VPN/隧道 必须开启的，防止因 MTU 不匹配导致的“卡死”
 net.ipv4.tcp_mtu_probing=1
-# RFC1337 开启保护，防止 TIME_WAIT 重用
+# 防止 TIME_WAIT 状态下的连接被恶意重用
 net.ipv4.tcp_rfc1337=1
-# 开启选择性确认，提高丢包恢复能力
+# 开启选择性确认 (SACK)，丢包恢复的关键
 net.ipv4.tcp_sack=1
-# 启用 FACK，减少网络拥塞时的重复确认
-net.ipv4.tcp_fack=1
-# 开启窗口缩放，支持高带宽延迟网络
+# 开启窗口缩放，支持 64KB 以上的 TCP 窗口，跑满带宽必备
 net.ipv4.tcp_window_scaling=1
-# 自动调节高级窗口缩放，兼顾性能与兼容
+# 接收窗口比例设定，-1 代表自动计算 (默认推荐)
 net.ipv4.tcp_adv_win_scale=-1
-# 自动调节接收缓冲，提高大流量适应性
+# 自动调节接收缓冲，适应长距离传输
 net.ipv4.tcp_moderate_rcvbuf=1
 
+# 提高 TSO 自动调节灵敏度
+# 改为 1 可以让 BBR 在发送小块数据时更连贯，减少延迟抖动
+net.ipv4.tcp_min_tso_segs=1
+# 开启 TCP RACK (RFC 8985)
+# 6.x 内核的标配。它改变了丢包探测机制，不再只看序号，而是看时间戳。
+# 在翻墙这种丢包、乱序严重的链路下，RACK 能让重传极其精准，不误降速
+net.ipv4.tcp_recovery=1
+# 乱序容忍度 (Reordering Threshold)
+# 跨境链路设为 6-10 比较适合，减少误重传
+net.ipv4.tcp_reordering=8
+# 禁用 Autocorking，VPN 场景下希望包越快发出去越好，降低延迟
+# 在高速传输时，内核会尝试合并小包。VPN 场景下，我们希望包越快发出去越好，禁用它可以降低延迟。
+net.ipv4.tcp_autocorking=0
+# 增加网卡处理数据包的预算。在高 PPS 流量下降低 CPU 占用
+net.core.netdev_budget=600
+net.core.netdev_budget_usecs=20000
+# 开启 RPS 相关的流控制，有助于在多核 CPU 上均匀分发网络压力
+net.core.rps_sock_flow_entries=65536
+# 缩短重试次数，让死连接更快被释放
+net.ipv4.tcp_orphan_retries=1
+
 # =========================
-# TCP 缓冲区设置
+# Google BBR 专属优化 (关键)
 # =========================
-# 接收缓冲：最小8KB，默认1MB，最大 128MB
-net.ipv4.tcp_rmem=8192 1048576 134217728
-# 发送缓冲：最小4KB，默认1MB，最大 128MB
+# 选用 BBR 拥塞控制
+net.ipv4.tcp_congestion_control=bbr
+# 配合 BBR 必须使用 fq 调度算法
+net.core.default_qdisc=fq
+# BBR 慢启动阶段的起步倍数 (默认288/200)，330% 适合跨境激进抢占带宽
+# 注：部分内核可能不直接支持通过 sysctl 修改此参数，若报错可忽略
+net.ipv4.tcp_pacing_ss_ratio=330
+# BBR 拥塞避免阶段的增益倍数 (默认125/112)，136% 适合对抗网络波动
+net.ipv4.tcp_pacing_ca_ratio=136
+
+# =========================
+# TCP 缓冲区与内存管理
+# =========================
+# 接收缓冲：增加默认值到 1MB，最大 128MB 以适应高 BDP 网络
+# 注意：若服务器内存小于 1GB，建议将 134217728 改为 67108864
+net.ipv4.tcp_rmem=4096 1048576 134217728
+# 发送缓冲：增加默认值到 1MB，最大 128MB
 net.ipv4.tcp_wmem=4096 1048576 134217728
-# TCP 内存合并阈值，减少内存碎片
+# 内存合并限制，减少碎片
 net.ipv4.tcp_collapse_max_bytes=6291456
-# 降低缓冲区未发送数据阈值 (降低延迟)
+# 降低缓冲区未发送数据阈值，减少 Bufferbloat (延迟优化关键)
+# BBR 配合此项可以显著降低大流量时的网页访问延迟
 net.ipv4.tcp_notsent_lowat=16384
 
 # =========================
-# TCP 连接参数优化
+# 连接保持与超时优化
 # =========================
-# 开启 TFO
+# 开启 TCP Fast Open (TFO)，设为 3 支持客户端和服务器模式
 net.ipv4.tcp_fastopen=3
-# 减少 TIME_WAIT 堆积
+# 缩短孤儿连接的 FIN 等待时间
 net.ipv4.tcp_fin_timeout=15
-# TCP Keepalive 空闲时间 缩短存活时间，更快清理死连接
+# Keepalive 时间：300秒检测一次。防止防火墙或运营商剔除长连接
 net.ipv4.tcp_keepalive_time=300
-# Keepalive 探测间隔
-net.ipv4.tcp_keepalive_intvl=3
-# Keepalive 最大探测次数
+net.ipv4.tcp_keepalive_intvl=15
 net.ipv4.tcp_keepalive_probes=5
-# TCP 初次重传次数
-net.ipv4.tcp_retries1=3
-# TCP 全重传次数 跨国链路建议不要太小，防止抖动断开
+# 优化重传次数：跨境链路丢包率高，8次(约25-30秒)既能容忍抖动，又不会死等太久
 net.ipv4.tcp_retries2=8
-# 空闲后不触发慢启动，保持速度
+# 空闲后不进入慢启动，保持高速状态 (VPN 保持吞吐的关键)
 net.ipv4.tcp_slow_start_after_idle=0
-# 开启 TIME_WAIT 复用 (关键优化)
+# 开启 TIME_WAIT 复用，应对高并发短连接
 net.ipv4.tcp_tw_reuse=1
-# 开启时间戳，防止序列号回绕
+# 开启时间戳，计算 RTT 和 防止序列号回绕 (PAWS)
 net.ipv4.tcp_timestamps=1
-# 开启 SYN Cookies，防止 SYN 洪泛攻击
-net.ipv4.tcp_syncookies=1
-# SYN 重试次数
-net.ipv4.tcp_syn_retries=3
-# SYN-ACK 重试次数
-net.ipv4.tcp_synack_retries=3
-# SYN 队列长度，支持高并发连接
-net.ipv4.tcp_max_syn_backlog=819200
-# 允许更多孤儿连接（防止突发流量报错）
-net.ipv4.tcp_max_orphans = 32768
-# TIME_WAIT 最大数量
-net.ipv4.tcp_max_tw_buckets=131072
-# 队列溢出直接拒绝新连接，防止内存崩溃
-net.ipv4.tcp_abort_on_overflow=1
 
 # =========================
-# 内核转发 / 路由 / NAT
+# 防御与高并发支持
 # =========================
-# 开启 IP 转发，允许路由
+# 开启 SYN Cookies，轻量级防御 SYN Flood
+net.ipv4.tcp_syncookies=1
+net.ipv4.tcp_syn_retries=3
+net.ipv4.tcp_synack_retries=3
+# 加大 SYN 队列，防止握手阶段丢包
+net.ipv4.tcp_max_syn_backlog=65535
+# 增加最大孤儿连接数，防止大量连接断开时报错
+net.ipv4.tcp_max_orphans=65535
+# 增加 TIME_WAIT 桶大小
+net.ipv4.tcp_max_tw_buckets=262144
+# 队列满时不要直接 Reset，而是丢弃包让客户端重试 (0)，增加鲁棒性
+net.ipv4.tcp_abort_on_overflow=0
+
+# =========================
+# 路由与转发
+# =========================
+# 开启 IP 转发 (VPN/网关必备)
 net.ipv4.ip_forward=1
 net.ipv4.conf.all.forwarding=1
 net.ipv4.conf.default.forwarding=1
-# 允许本地路由到 127.0.0.0/8，用于 NAT/代理
+# 允许本地路由环回 (部分透明代理需要)
 net.ipv4.conf.all.route_localnet=1
 
 # =========================
-# UDP & 网络队列优化
+# UDP & Core 队列 (针对 QUIC/Hysteria)
 # =========================
-# 接收缓冲区上限 128MB
+# 显著增加核心缓冲区上限，防止 Hysteria 等 UDP 协议在大流量下丢包
 net.core.rmem_max=134217728
-# 发送缓冲区上限 128MB
 net.core.wmem_max=134217728
-# 接收队列最大长度，提高高并发处理能力
-net.core.netdev_max_backlog=32768
-# TCP 监听队列长度
-net.core.somaxconn=32768
-# UDP 最小接收缓冲 (优化QUIC)
+# 网卡设备积压队列
+net.core.netdev_max_backlog=65535
+# 监听队列上限
+net.core.somaxconn=65535
+# UDP 缓冲区下限优化，提升极速传输稳定性
 net.ipv4.udp_rmem_min=16384
-# UDP 最小发送缓冲 (优化QUIC)
 net.ipv4.udp_wmem_min=16384
 
 # =========================
-# 拥塞控制算法
+# 连接跟踪 (Conntrack) 调优
 # =========================
-# 使用 BBR 拥塞控制算法，提高吞吐和稳定性
-net.ipv4.tcp_congestion_control=bbr
-# 使用公平队列调度，避免网络抖动
-net.core.default_qdisc=fq
-
-# =========================
-# 连接跟踪优化
-# =========================
-# 最大连接追踪数
-# 每生成了12万连接会占用30M内存
-# 默认通常是 65536，对于代理服务器太小，直接给到 200万+
-net.netfilter.nf_conntrack_max=$CONNTRACK_MAX
-# 已建立 TCP 连接超时
-net.netfilter.nf_conntrack_tcp_timeout_established=600
+# 提高最大连接跟踪数，防止在高并发下出现 "table full" 错误
+net.netfilter.nf_conntrack_max=${CONNTRACK_MAX:-1048576}
+# 建立连接超时：建议 3600(1小时)，防止 SSH 等长连接空闲断开
+net.netfilter.nf_conntrack_tcp_timeout_established=3600
+# 缩短这些中间状态的超时，加快条目回收
 net.netfilter.nf_conntrack_tcp_timeout_close_wait=60
 net.netfilter.nf_conntrack_tcp_timeout_fin_wait=120
 net.netfilter.nf_conntrack_tcp_timeout_time_wait=120
 
 # =========================
-# 系统资源 / 文件句柄
+# 文件句柄限制
 # =========================
-# 系统最大文件句柄
 fs.file-max=10485760
-# 每进程最大文件数
 fs.nr_open=1048576
-# inotify 最大实例数
 fs.inotify.max_user_instances=8192
-# 本地端口范围
+# 扩大本地端口范围
 net.ipv4.ip_local_port_range=10000 65535
 EOF
 
