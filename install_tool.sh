@@ -297,6 +297,10 @@ install_ufw() {
   remote_execute "system/install_ufw.sh"
 }
 
+install_supervisor() {
+  remote_execute "system/supervisor_auto.sh" deploy
+}
+
 # 将所有功能逻辑封装到一个独立的函数中
 action_logic() {
     case $1 in
@@ -325,6 +329,9 @@ action_logic() {
         update_nameserver
         ;;
     8)
+        install_supervisor
+        ;;
+    9)
         clean_system_rubbish
         ;;
     100)
@@ -338,7 +345,7 @@ action_logic() {
         ;;
     666)
         echo_info "🚀 开始全自动化安装与优化..."
-        for cmd in optimizing_system install_base install_ufw install_docker install_on_my_zsh update_motd update_nameserver clean_system_rubbish; do
+        for cmd in optimizing_system install_base install_ufw install_docker install_on_my_zsh update_motd update_nameserver install_supervisor clean_system_rubbish; do
             echo "------------------------------------------------------"
             echo_info "正在执行: $cmd"
             $cmd
@@ -364,12 +371,13 @@ menu() {
     echo -e "${Green}5.${Font} 安装 on-my-zsh"
     echo -e "${Green}6.${Font} 更新 motd"
     echo -e "${Green}7.${Font} 更新 nameserver"
-    echo -e "${Green}8.${Font} 清理系统垃圾"
+    echo -e "${Green}8.${Font} 部署 supervisor"
+    echo -e "${Green}9.${Font} 清理系统垃圾"
     echo -e "${Green}100.${Font} 虚拟内存设置"
     echo -e "${Green}110.${Font} 安装acme命令动态配置域名证书"
     echo -e "${Green}120.${Font} 安装docker容器自动更新"
 
-    echo -e "${Green}666.${Font} 一键 1、2、3、4、5、6、7、8"
+    echo -e "${Green}666.${Font} 一键 1、2、3、4、5、6、7、8、9"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
