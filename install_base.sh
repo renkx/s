@@ -284,6 +284,10 @@ dependency_install() {
   DEBIAN_FRONTEND=noninteractive ${INS} install wget zsh vim curl net-tools lsof screen jq bc vnstat bind9-dnsutils iperf3 -y
   check_result "安装基础依赖"
 
+  # 安装自动更新工具
+  export DEBIAN_FRONTEND=noninteractive && ${INS} update && ${INS} install -y unattended-upgrades && printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Download-Upgradeable-Packages "1";\nAPT::Periodic::AutocleanInterval "7";\nAPT::Periodic::Unattended-Upgrade "1";\n' > /etc/apt/apt.conf.d/20auto-upgrades && systemctl restart unattended-upgrades
+  judge "安装 自动更新工具 unattended-upgrades"
+
   # 系统监控工具
   ${INS} install -y htop
   judge "安装 系统监控工具 htop"
