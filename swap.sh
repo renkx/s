@@ -82,6 +82,7 @@ create_swapfile(){
 
   # 检测磁盘可用空间
   available_space=$(df --output=avail -m / | tail -1)
+  echo -e "当前磁盘可用空间: ${Green}${available_space} MB，正在检测是否充足${Font}"
   if [ "$new_swap" -ge "$available_space" ]; then
       echo -e "${Red}错误：可用磁盘空间不足！可用空间 ${available_space} MB，无法创建 ${new_swap} MB 的 swap。${Font}"
       exit 1
