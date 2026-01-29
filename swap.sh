@@ -82,13 +82,13 @@ create_swapfile(){
 
   # 检测磁盘可用空间
   available_space=$(df --output=avail -m / | tail -1)
-  echo -e "当前磁盘可用空间: ${Green}${available_space} MB，正在检测是否充足${Font}"
+  echo -e "当前磁盘可用空间: ${Green}${available_space} ${Font}MB，检测是否可建..."
   if [ "$new_swap" -ge "$available_space" ]; then
       echo -e "${Red}错误：可用磁盘空间不足！可用空间 ${available_space} MB，无法创建 ${new_swap} MB 的 swap。${Font}"
       exit 1
   fi
 
-  echo "正在创建 /swapfile ($new_swap MB)..."
+  echo -e "正在创建 /swapfile (${Green}$new_swap ${Font}MB)..."
   # 自动化模式下使用 fallocate 更快，如果不支持则回退到 dd
   fallocate -l "${new_swap}M" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$new_swap" status=progress
 
@@ -128,7 +128,7 @@ main(){
 
     # 逻辑判断：如果有参数 $1，直接静默运行
     if [ -n "${1:-}" ]; then
-        echo -e "${Green}[INFO]${Font} 检测到自动创建参数: $1 MB"
+        echo -e "${Green}[INFO]${Font} 检测到自动创建参数: ${Green}$1${Font} MB"
         clear_all_swap
         create_swapfile "$1"
     else
