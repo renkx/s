@@ -83,7 +83,8 @@ check_network_env() {
 # 远程脚本执行函数
 remote_execute() {
     local file_path=$1
-    local args=$2
+    shift # 移除 file_path，剩下的就是传给脚本的参数
+
     # 检查网络
     check_network_env
 
@@ -97,7 +98,8 @@ remote_execute() {
     script_content=$(curl -sSL "${base_url}/${file_path}")
 
     if [ -n "$script_content" ]; then
-        bash <(echo "$script_content") $args
+        # 将当前的参数列表 "$@" 传递给 bash 执行的脚本
+        bash <(echo "$script_content") "$@"
     else
         echo_error "脚本下载失败，请检查网络连接。"
     fi
@@ -303,7 +305,10 @@ install_supervisor() {
 
 # 将所有功能逻辑封装到一个独立的函数中
 action_logic() {
-    case $1 in
+    local cmd_num=$1
+    shift # 移除第一个参数（编号），剩下的 $@ 就是要传递给子脚本的参数
+
+    case $cmd_num in
     0)
         exit 0
         ;;
@@ -335,7 +340,7 @@ action_logic() {
         clean_system_rubbish
         ;;
     100)
-        update_swap
+        update_swap "$@"
         ;;
     110)
         install_acme
@@ -353,7 +358,7 @@ action_logic() {
         echo_ok "✅ 所有任务已完成！"
         ;;
     *)
-        echo -e "${RedBG}错误: 无效的指令 [$1]${Font}"
+        echo -e "${RedBG}错误: 无效的指令 [$cmd_num]${Font}"
         return 1
         ;;
     esac
@@ -399,7 +404,8 @@ menu() {
 # 脚本执行入口判断
 if [ -n "$1" ]; then
     # 如果命令行有参数，直接执行逻辑
-    action_logic "$1"
+    # 使用 "$@" 确保所有参数（如 3 a b c）都被完整传递
+    action_logic "$@"
 else
     # 交互模式使用循环，直到用户选择 0 (退出)
     while true; do
