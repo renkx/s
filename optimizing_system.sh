@@ -62,7 +62,7 @@ else
     TARGET_HASHSIZE="327680"
     VM_SWAPPINESS="10"        # 尽量不用 swap
     VM_DIRTY_RATIO="20"       # 允许更多内存作为磁盘缓存
-    TCP_BUFFER_MAX="134217728"# 128M 因为有 notsent_lowat 保底，降低发送延迟
+    TCP_BUFFER_MAX="134217728" # 128M 因为有 notsent_lowat 保底，降低发送延迟
     VM_MIN_FREE="65536"       # 预留 64MB
 fi
 
