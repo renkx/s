@@ -285,7 +285,7 @@ dependency_install() {
   check_result "安装基础依赖"
 
   # 安装自动更新工具
-  export DEBIAN_FRONTEND=noninteractive && ${INS} update && ${INS} install -y unattended-upgrades && printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Download-Upgradeable-Packages "1";\nAPT::Periodic::AutocleanInterval "7";\nAPT::Periodic::Unattended-Upgrade "1";\n' > /etc/apt/apt.conf.d/20auto-upgrades && systemctl restart unattended-upgrades
+  export DEBIAN_FRONTEND=noninteractive && ${INS} install -y unattended-upgrades && printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Download-Upgradeable-Packages "1";\nAPT::Periodic::AutocleanInterval "7";\nAPT::Periodic::Unattended-Upgrade "1";\n' > /etc/apt/apt.conf.d/20auto-upgrades && systemctl restart unattended-upgrades
   judge "安装 自动更新工具 unattended-upgrades"
 
   # 系统监控工具
