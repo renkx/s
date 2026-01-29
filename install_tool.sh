@@ -276,7 +276,7 @@ optimizing_system() {
 
 # 虚拟内存设置
 update_swap() {
-  remote_execute "swap.sh"
+  remote_execute "swap.sh" "$@"
 }
 
 # 更新motd
