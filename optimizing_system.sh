@@ -153,6 +153,8 @@ net.ipv4.tcp_pacing_ca_ratio=136
 # 注意：根据内存动态计算，否则太大会有网络延迟，太小又跑不满带宽
 net.ipv4.tcp_rmem=4096 87380 $TCP_BUFFER_MAX
 net.ipv4.tcp_wmem=4096 65536 $TCP_BUFFER_MAX
+net.core.rmem_max=$TCP_BUFFER_MAX
+net.core.wmem_max=$TCP_BUFFER_MAX
 # 内存合并限制，减少碎片
 net.ipv4.tcp_collapse_max_bytes=6291456
 # 降低缓冲区未发送数据阈值，减少 Bufferbloat (延迟优化关键)
@@ -208,10 +210,6 @@ net.ipv4.conf.all.route_localnet=1
 # =========================
 # UDP & Core 队列 (针对 QUIC/Hysteria)
 # =========================
-# 显著增加核心缓冲区上限，防止 Hysteria 等 UDP 协议在大流量下丢包
-# 注意：根据内存动态计算，否则太大会有网络延迟，太小又跑不满带宽
-net.core.rmem_max=$TCP_BUFFER_MAX
-net.core.wmem_max=$TCP_BUFFER_MAX
 # 网卡设备积压队列
 net.core.netdev_max_backlog=65535
 # 监听队列上限
