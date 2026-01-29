@@ -5,7 +5,7 @@ Font="\033[0m"
 Red="\033[31m"
 Yellow="\033[33m"
 
-#root权限
+# root权限
 root_need(){
     if [[ $EUID -ne 0 ]]; then
         echo -e "${Red}请以 root 权限运行此脚本。${Font}"
@@ -13,7 +13,7 @@ root_need(){
     fi
 }
 
-#检测ovz
+# 检测ovz
 ovz_no(){
     if [[ -d "/proc/vz" ]]; then
         echo -e "${Red}Your VPS is based on OpenVZ，not supported!${Font}"
@@ -21,25 +21,20 @@ ovz_no(){
     fi
 }
 
-# 显示内存和 swap，区分 swap 分区和 /swapfile
+# 显示内存和 swap
 show_mem_swap(){
-  # 显示最新内存和 swap 使用情况
   echo -e "\n${Green}=== 当前内存和 swap 状态 ===${Font}"
-  # 物理内存
   mem_info=$(free -b | awk 'NR==2{printf "%.2f/%.2f MB (%.2f%%)", $3/1024/1024, $2/1024/1024, $3*100/$2}')
   echo -e "当前物理内存: ${Green}$mem_info${Font}"
 
-  # 总 swap
   swap_total=$(free -m | awk '/Swap/ {print $2}')
   swap_used=$(free -m | awk '/Swap/ {print $3}')
-  swap_percentage=$(( swap_used * 100 / (swap_total==0?1:swap_total) ))
+  swap_percentage=$(( swap_total==0 ? 0 : swap_used * 100 / swap_total ))
 
-  # 列出每个 swap
   echo -e "当前 swap 状态:"
   if [ "$swap_total" -eq 0 ]; then
       echo -e "  ${Yellow}无 swap${Font}"
   else
-      # 遍历 /proc/swaps
       awk 'NR>1 {printf "  %-15s %-8d MB  已用 %-8d MB\n", $1, $3/1024, $4/1024}' /proc/swaps
       echo -e "  总计: ${swap_used}/${swap_total} MB (${swap_percentage}%)"
   fi
@@ -49,12 +44,9 @@ show_mem_swap(){
 # 清理所有 swap
 clear_all_swap(){
   echo -e "${Red}正在关闭并清理所有 swap...${Font}"
-
-  # 关闭所有 swap
-  swapoff -a
-
-  # 清理 /etc/fstab 中的 swap 条目
-  sed -ri 's|^(.*/swap.*)|#\1|' /etc/fstab
+  swapoff -a >/dev/null 2>&1
+  # 将原本以 /swap 开头的条目注释掉
+  sed -ri 's|^([^#].*/swap.*)|#\1|' /etc/fstab
 
   # 清理物理 swap 分区（可选 wipefs，如果你确定要彻底清空）
   swap_partitions=$(grep -E '^/dev/' /proc/swaps | awk '{print $1}')
@@ -68,16 +60,20 @@ clear_all_swap(){
       rm -f /swapfile
       echo -e "已删除旧 /swapfile"
   fi
-
   echo -e "${Green}所有 swap 已清理完毕。${Font}"
 }
 
-# 创建新的 /swapfile
+# 创建新的 /swapfile (增加参数支持)
 create_swapfile(){
-  read -p "请输入新的虚拟内存大小(MB): " new_swap < /dev/tty
+  local new_swap=$1
+
+  # 如果没有传入参数，则进入交互模式
+  if [ -z "$new_swap" ]; then
+      read -p "请输入新的虚拟内存大小(MB): " new_swap < /dev/tty
+  fi
 
   if ! [[ "$new_swap" =~ ^[0-9]+$ ]]; then
-      echo -e "${Red}输入无效，请输入数字。${Font}"
+      echo -e "${Red}错误：输入无效，请输入纯数字。${Font}"
       exit 1
   fi
 
@@ -88,14 +84,24 @@ create_swapfile(){
       exit 1
   fi
 
-  echo "正在创建 /swapfile..."
-  dd if=/dev/zero of=/swapfile bs=1M count="$new_swap" status=progress
+  echo "正在创建 /swapfile ($new_swap MB)..."
+  # 自动化模式下使用 fallocate 更快，如果不支持则回退到 dd
+  if command -v fallocate &>/dev/null; then
+      fallocate -l "${new_swap}M" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$new_swap" status=progress
+  else
+      dd if=/dev/zero of=/swapfile bs=1M count="$new_swap" status=progress
+  fi
+
   chmod 600 /swapfile
   mkswap /swapfile
   swapon /swapfile
 
-  # 写入 fstab
-  echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+  # 检查并写入 fstab，防止重复写入
+  if ! grep -q "/swapfile" /etc/fstab; then
+      echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+  else
+      sed -i 's|^#.*/swapfile|/swapfile|' /etc/fstab
+  fi
 
   # Alpine 额外处理
   if [ -f /etc/alpine-release ]; then
@@ -103,7 +109,7 @@ create_swapfile(){
           echo "nohup swapon /swapfile" >> /etc/local.d/swap.start
       fi
       chmod +x /etc/local.d/swap.start
-      rc-update add local
+      rc-update add local >/dev/null 2>&1
   fi
 
   # 确认挂载成功
@@ -122,21 +128,29 @@ create_swapfile(){
 main(){
     root_need
     ovz_no
-    show_mem_swap
 
-    read -p "是否清理所有 swap 并重新定义 /swapfile?(Y/N): " choice < /dev/tty
-    case "$choice" in
-        [Yy])
-            clear_all_swap
-            create_swapfile
-            ;;
-        [Nn])
-            echo "已取消"
-            ;;
-        *)
-            echo -e "无效选择，请输入 ${Green}Y${Font} 或 ${Green}N${Font}。"
-            ;;
-    esac
+    # 逻辑判断：如果有参数 $1，直接静默运行
+    if [ -n "${1:-}" ]; then
+        echo -e "${Green}[INFO]${Font} 检测到自动创建参数: $1 MB"
+        clear_all_swap
+        create_swapfile "$1"
+    else
+        # 无参数，进入交互模式
+        show_mem_swap
+        read -p "是否清理所有 swap 并重新定义 /swapfile?(Y/N): " choice < /dev/tty
+        case "$choice" in
+            [Yy])
+                clear_all_swap
+                create_swapfile
+                ;;
+            [Nn])
+                echo "已取消"
+                ;;
+            *)
+                echo -e "无效选择。"
+                ;;
+        esac
+    fi
 }
 
-main
+main "$@"
