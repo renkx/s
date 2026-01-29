@@ -45,8 +45,11 @@ show_mem_swap(){
 clear_all_swap(){
   echo -e "${Red}正在关闭并清理所有 swap...${Font}"
   swapoff -a >/dev/null 2>&1
-  # 将原本以 /swap 开头的条目注释掉
-  sed -ri 's|^([^#].*/swap.*)|#\1|' /etc/fstab
+
+  # 从 fstab 中彻底删除包含 swap 的行
+  # 我们不只是注释，而是直接清理掉旧的 /swapfile 条目和分区条目，保持文件整洁
+  # 使用临时文件处理，避免 sed 在某些系统上的行为差异
+  sed -i '/[[:space:]]swap[[:space:]]/d' /etc/fstab
 
   # 清理物理 swap 分区（可选 wipefs，如果你确定要彻底清空）
   swap_partitions=$(grep -E '^/dev/' /proc/swaps | awk '{print $1}')
@@ -86,22 +89,15 @@ create_swapfile(){
 
   echo "正在创建 /swapfile ($new_swap MB)..."
   # 自动化模式下使用 fallocate 更快，如果不支持则回退到 dd
-  if command -v fallocate &>/dev/null; then
-      fallocate -l "${new_swap}M" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$new_swap" status=progress
-  else
-      dd if=/dev/zero of=/swapfile bs=1M count="$new_swap" status=progress
-  fi
+  fallocate -l "${new_swap}M" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$new_swap" status=progress
 
   chmod 600 /swapfile
-  mkswap /swapfile
+  mkswap /swapfile > /dev/null 2>&1
   swapon /swapfile
 
-  # 检查并写入 fstab，防止重复写入
-  if ! grep -q "/swapfile" /etc/fstab; then
-      echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
-  else
-      sed -i 's|^#.*/swapfile|/swapfile|' /etc/fstab
-  fi
+  # 写入 fstab (确保唯一性)
+  # 之前已经清理过了，所以这里直接追加一行最标准的配置
+  echo "/swapfile none swap sw 0 0" >> /etc/fstab
 
   # Alpine 额外处理
   if [ -f /etc/alpine-release ]; then
