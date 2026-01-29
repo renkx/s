@@ -35,16 +35,35 @@ fi
 # 获取总物理内存 (MB)，精确匹配 Mem 行，不包含 Swap
 MEM_MB=$(free -m | awk '/^Mem:/{print $2}')
 
-if [ "$MEM_MB" -le 512 ]; then
-    # 入门级 VPS (≤512MB)，防止内存溢出导致内核崩溃
-    echo_info "检测到内存为 ${MEM_MB}MB，使用入门级优化策略..."
+if [ "$MEM_MB" -le 600 ]; then
+    # 针对 512MB 左右的小内存大带宽 VPS 优化
+    echo_info "检测到内存为 ${MEM_MB}MB，采用 [小内存-高带宽] 激进策略..."
     CONNTRACK_MAX="524288"
     TARGET_HASHSIZE="65536"
+    VM_SWAPPINESS="20"        # 稍微积极一点使用 swap，保护物理内存不崩
+    VM_DIRTY_RATIO="10"       # 减少脏数据堆积，防止小内存写磁盘时卡死
+    TCP_BUFFER_MAX="8388608"  # 8MB 封顶，兼顾 1Gbps 峰值
+    VM_MIN_FREE="16384"       # 预留 16MB 紧急内存
+elif [ "$MEM_MB" -le 2048 ]; then
+    # 标准级 VPS (512MB - 2GB) - 通用模式
+    # 策略：性能与稳定平衡，使用 16MB 黄金通用值
+    echo_info "检测到内存为 ${MEM_MB}MB，使用 [标准性能型] 策略..."
+    CONNTRACK_MAX="1048576"
+    TARGET_HASHSIZE="131072"
+    VM_SWAPPINESS="15"
+    VM_DIRTY_RATIO="15"
+    TCP_BUFFER_MAX="16777216" # 16MB 封顶（黄金值，跑满 1Gbps）
+    VM_MIN_FREE="32768"       # 预留 32MB
 else
-    # 进阶/专业级 VPS (>512MB)
-    echo_info "检测到内存为 ${MEM_MB}MB，使用高性能优化策略..."
+    # 高性能服务器 (> 2GB) - 极速模式
+    # 策略：释放性能，尽量多用物理内存
+    echo_info "检测到内存为 ${MEM_MB}MB，使用 [极致性能型] 策略..."
     CONNTRACK_MAX="2621440"
     TARGET_HASHSIZE="327680"
+    VM_SWAPPINESS="10"        # 尽量不用 swap
+    VM_DIRTY_RATIO="20"       # 允许更多内存作为磁盘缓存
+    TCP_BUFFER_MAX="33554432" # 32MB 封顶（适合 2.5G/10G 大带宽）
+    VM_MIN_FREE="65536"       # 预留 64MB
 fi
 
 # --- 核心优化逻辑 ---
@@ -131,11 +150,9 @@ net.ipv4.tcp_pacing_ca_ratio=136
 # =========================
 # TCP 缓冲区与内存管理
 # =========================
-# 接收缓冲：增加默认值到 1MB，最大 128MB 以适应高 BDP 网络
-# 注意：若服务器内存小于 1GB，建议将 134217728 改为 67108864
-net.ipv4.tcp_rmem=4096 1048576 134217728
-# 发送缓冲：增加默认值到 1MB，最大 128MB
-net.ipv4.tcp_wmem=4096 1048576 134217728
+# 注意：根据内存动态计算，否则太大会有网络延迟，太小又跑不满带宽
+net.ipv4.tcp_rmem=4096 87380 $TCP_BUFFER_MAX
+net.ipv4.tcp_wmem=4096 65536 $TCP_BUFFER_MAX
 # 内存合并限制，减少碎片
 net.ipv4.tcp_collapse_max_bytes=6291456
 # 降低缓冲区未发送数据阈值，减少 Bufferbloat (延迟优化关键)
@@ -192,8 +209,9 @@ net.ipv4.conf.all.route_localnet=1
 # UDP & Core 队列 (针对 QUIC/Hysteria)
 # =========================
 # 显著增加核心缓冲区上限，防止 Hysteria 等 UDP 协议在大流量下丢包
-net.core.rmem_max=134217728
-net.core.wmem_max=134217728
+# 注意：根据内存动态计算，否则太大会有网络延迟，太小又跑不满带宽
+net.core.rmem_max=$TCP_BUFFER_MAX
+net.core.wmem_max=$TCP_BUFFER_MAX
 # 网卡设备积压队列
 net.core.netdev_max_backlog=65535
 # 监听队列上限
@@ -213,6 +231,14 @@ net.netfilter.nf_conntrack_tcp_timeout_established=3600
 net.netfilter.nf_conntrack_tcp_timeout_close_wait=60
 net.netfilter.nf_conntrack_tcp_timeout_fin_wait=120
 net.netfilter.nf_conntrack_tcp_timeout_time_wait=120
+
+# 虚拟内存优化
+vm.swappiness=$VM_SWAPPINESS
+vm.dirty_ratio=$VM_DIRTY_RATIO
+vm.dirty_background_ratio=5
+vm.min_free_kbytes=$VM_MIN_FREE
+vm.vfs_cache_pressure=50
+vm.overcommit_memory=1
 
 # =========================
 # 文件句柄限制
