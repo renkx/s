@@ -351,7 +351,7 @@ action_logic() {
     666)
         echo_info "🚀 开始全自动化安装与优化..."
         # 创建1024M虚拟内存
-        update_swap 1024
+        update_swap 1025
         for cmd in optimizing_system install_base install_ufw install_docker install_on_my_zsh update_motd update_nameserver install_supervisor clean_system_rubbish; do
             echo "------------------------------------------------------"
             echo_info "正在执行: $cmd"
