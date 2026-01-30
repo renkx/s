@@ -293,7 +293,7 @@ logpath = $nginx_stream_error_log
 backend = pyinotify
 bantime = 30d
 findtime = 1h
-maxretry = 1
+maxretry = 5
 
 # 针对 HTTP 层陷阱（444）
 [nginx-444]
