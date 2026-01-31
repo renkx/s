@@ -25,6 +25,10 @@ jobs:
           force_update: true
           debug: true
           clone_style: "https"
+          # 提高 API 响应等待时间
+          api_timeout: 180
+          # 如果仓库非常大，增加总超时时间（默认 30m）
+          timeout: '1h'
 
       # 同步 zsh-users 组织的多个插件仓库
       - name: Sync zsh-plugins
@@ -38,3 +42,7 @@ jobs:
           force_update: true
           debug: true
           clone_style: "https"
+          # 提高 API 响应等待时间
+          api_timeout: 180
+          # 如果仓库非常大，增加总超时时间（默认 30m）
+          timeout: '1h'
