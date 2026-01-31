@@ -20,6 +20,11 @@ yum install -y curl 2> /dev/null || apt install -y curl && bash <(curl -sSL http
 wget -N --no-check-certificate -q -O install_docker_frps.sh "https://raw.githubusercontent.com/renkx/s/main/frp/install_docker_frps.sh" && chmod +x install_docker_frps.sh && bash install_docker_frps.sh /root/ag/conf/default/frps.toml
 ```
 
+##### 一键给PVE增加温度和cpu频率显示，NVME，机械固态硬盘信息 https://www.right.com.cn/forum/thread-6754687-1-1.html
+```shell
+apt install -y curl && bash <(curl -sSL https://gitee.com/renkx/ss/raw/main/pve/pve_mod_check.sh)
+```
+
 ##### MoeClub.org
 ```shell
 #先切换到root权限
