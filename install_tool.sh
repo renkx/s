@@ -128,15 +128,16 @@ EOF
 clean_system_rubbish() {
   echo_info "开始系统保养与深度清理..."
 
+################ 我自己PVE虚拟机也需要这个，云厂商的手动删除吧 ########################
   # 清理云厂商组件 (qemu-guest-agent 等)
   # 存在才删，不浪费性能
-  local CLOUD_PACKS="qemu-guest-agent cloud-init"
-  for pkg in $CLOUD_PACKS; do
-      if dpkg -l | grep -q "$pkg"; then
-          echo_info "检测到残留组件: $pkg，正在彻底卸载..."
-          apt-get purge -y "$pkg"
-      fi
-  done
+#  local CLOUD_PACKS="qemu-guest-agent cloud-init"
+#  for pkg in $CLOUD_PACKS; do
+#      if dpkg -l | grep -q "$pkg"; then
+#          echo_info "检测到残留组件: $pkg，正在彻底卸载..."
+#          apt-get purge -y "$pkg"
+#      fi
+#  done
 
   # 清理残余配置文件 (rc状态)
   # 只要系统在运行，就可能产生 rc 状态的残留
@@ -352,7 +353,7 @@ action_logic() {
         echo_info "🚀 开始全自动化安装与优化..."
         # 创建1024M虚拟内存
         update_swap 1025
-        for cmd in optimizing_system install_base install_ufw install_docker install_on_my_zsh update_motd update_nameserver install_supervisor clean_system_rubbish; do
+        for cmd in optimizing_system install_base install_ufw install_docker install_on_my_zsh update_motd install_supervisor clean_system_rubbish; do
             echo "------------------------------------------------------"
             echo_info "正在执行: $cmd"
             $cmd
@@ -384,7 +385,7 @@ menu() {
     echo -e "${Green}110.${Font} 安装acme命令动态配置域名证书"
     echo -e "${Green}120.${Font} 安装docker容器自动更新"
 
-    echo -e "${Green}666.${Font} 一键 100、1、2、3、4、5、6、7、8、9"
+    echo -e "${Green}666.${Font} 一键 100、1、2、3、4、5、6、8、9"
     echo -e "————————————————————————————————————————————————————————————————"
 
     check_status
