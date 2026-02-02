@@ -124,20 +124,22 @@ EOF
     echo_ok "DNS 已更新为 $dns_server 并加锁"
 }
 
+# 移除云厂商软件
+remove_cloud_pkg() {
+  # 清理云厂商组件 (qemu-guest-agent 等)
+  # 存在才删，不浪费性能
+  local CLOUD_PACKS="qemu-guest-agent cloud-init"
+  for pkg in $CLOUD_PACKS; do
+      if dpkg -l | grep -q "$pkg"; then
+          echo_info "检测到残留组件: $pkg，正在彻底卸载..."
+          apt-get purge -y "$pkg"
+      fi
+  done
+}
+
 # 清理系统垃圾
 clean_system_rubbish() {
   echo_info "开始系统保养与深度清理..."
-
-################ 我自己PVE虚拟机也需要这个，云厂商的手动删除吧 ########################
-  # 清理云厂商组件 (qemu-guest-agent 等)
-  # 存在才删，不浪费性能
-#  local CLOUD_PACKS="qemu-guest-agent cloud-init"
-#  for pkg in $CLOUD_PACKS; do
-#      if dpkg -l | grep -q "$pkg"; then
-#          echo_info "检测到残留组件: $pkg，正在彻底卸载..."
-#          apt-get purge -y "$pkg"
-#      fi
-#  done
 
   # 清理残余配置文件 (rc状态)
   # 只要系统在运行，就可能产生 rc 状态的残留
@@ -340,6 +342,9 @@ action_logic() {
     9)
         clean_system_rubbish
         ;;
+    10)
+        remove_cloud_pkg
+        ;;
     100)
         update_swap "$@"
         ;;
@@ -381,6 +386,7 @@ menu() {
     echo -e "${Green}7.${Font} 更新 nameserver"
     echo -e "${Green}8.${Font} 部署 supervisor"
     echo -e "${Green}9.${Font} 清理系统垃圾"
+    echo -e "${Green}10.${Font} 移除云厂商软件"
     echo -e "${Green}100.${Font} 虚拟内存设置"
     echo -e "${Green}110.${Font} 安装acme命令动态配置域名证书"
     echo -e "${Green}120.${Font} 安装docker容器自动更新"
