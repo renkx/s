@@ -295,35 +295,36 @@ APT::Periodic::AutocleanInterval "1";
 APT::Periodic::CleanInterval "1";
 EOF
 
-  # 3. 取消 updates 源注释 (50unattended-upgrades)
-  # 优化：有些发行版变量名带大括号，有些不带，用正则兼容多种写法
-  if grep -q "//.*-updates" "$FILE_50"; then
-      # 这里匹配 // 后面可能存在的空格以及多种变量格式
-      sed -i 's|//\s*"\${\?distro_id}\?:\${\?distro_codename}\?-updates";|"\${distro_id}:\${distro_codename}-updates";|' "$FILE_50"
-      echo "Updates 源已启用。"
+  # 取消 updates 源注释 (50unattended-upgrades)
+  if grep -q "codename=\${distro_codename}-updates" "$FILE_50"; then
+      echo "正在处理 updates 源注释..."
+      # 使用正则匹配：开头是 //，中间有任意空格，包含指定字符串
+      sed -i 's|//\s*"origin=Debian,codename=\${distro_codename}-updates";|"origin=Debian,codename=\${distro_codename}-updates";|' "$FILE_50"
   fi
 
-  # 4. 追加清理配置 (幂等检查)
-  if ! grep -q "AutoFixInterruptedDpkg" "$FILE_50"; then
-      # 建议在追加前加个空行，防止与原文件末尾内容粘连
+  # 检查是否包含“未被注释”的配置项。如果只有带 // 的，说明还没添加成功。
+  # ^[^/]* 确保匹配的行开头不是 /
+  if ! grep -q "^Unattended-Upgrade::AutoFixInterruptedDpkg" "$FILE_50"; then
+      echo "正在追加自定义优化配置..."
       cat <<EOF >> "$FILE_50"
 
-// --- 以下内容由自动化脚本添加 ---
+// --- 以下内容由自动化脚本添加以保证启用相关功能 ---
 Unattended-Upgrade::AutoFixInterruptedDpkg "true";
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 EOF
-      echo "清理与修复配置已追加。"
+  else
+      echo "自定义优化配置已激活，跳过追加。"
   fi
 
-  # 5. 校验配置语法
+  # 校验配置语法
   unattended-upgrades --dry-run >/dev/null 2>&1
   if [ $? -ne 0 ]; then
       echo "警告：unattended-upgrades 配置校验失败，请检查 $FILE_50"
   fi
 
-  # 6. 配置 Systemd Timer Drop-in
+  # 配置 Systemd Timer Drop-in
   mkdir -p "$TIMER_CONF_DIR"
   cat <<EOF > "$TIMER_CONF_FILE"
 [Timer]
@@ -332,7 +333,7 @@ OnCalendar=02:00
 RandomizedDelaySec=0
 EOF
 
-  # 7. 生效配置
+  # 生效配置
   systemctl daemon-reload
   systemctl enable --now apt-daily-upgrade.timer # 确保 timer 是 enable 状态
   systemctl restart apt-daily-upgrade.timer
