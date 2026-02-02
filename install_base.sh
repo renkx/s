@@ -274,6 +274,76 @@ EOF
   check_result "查看最终系统时间"
 }
 
+# 设定自动更新
+update_unattended_upgrades() {
+  local FILE_50="/etc/apt/apt.conf.d/50unattended-upgrades"
+  local FILE_20="/etc/apt/apt.conf.d/20auto-upgrades"
+  local TIMER_CONF_DIR="/etc/systemd/system/apt-daily-upgrade.timer.d"
+  local TIMER_CONF_FILE="$TIMER_CONF_DIR/override.conf"
+
+  # 1. 安装自动更新工具
+  export DEBIAN_FRONTEND=noninteractive
+  # 建议确保 INS 变量已定义，否则回退到 apt-get
+  ${INS:-apt-get} install -y unattended-upgrades
+
+  # 2. 更新周期配置 (20auto-upgrades)
+  # 使用 cat 覆盖写入天然具有幂等性
+  cat <<EOF > "$FILE_20"
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "3";
+APT::Periodic::AutocleanInterval "1";
+APT::Periodic::CleanInterval "1";
+EOF
+
+  # 3. 取消 updates 源注释 (50unattended-upgrades)
+  # 优化：有些发行版变量名带大括号，有些不带，用正则兼容多种写法
+  if grep -q "//.*-updates" "$FILE_50"; then
+      # 这里匹配 // 后面可能存在的空格以及多种变量格式
+      sed -i 's|//\s*"\${\?distro_id}\?:\${\?distro_codename}\?-updates";|"\${distro_id}:\${distro_codename}-updates";|' "$FILE_50"
+      echo "Updates 源已启用。"
+  fi
+
+  # 4. 追加清理配置 (幂等检查)
+  if ! grep -q "AutoFixInterruptedDpkg" "$FILE_50"; then
+      # 建议在追加前加个空行，防止与原文件末尾内容粘连
+      cat <<EOF >> "$FILE_50"
+
+// --- 以下内容由自动化脚本添加 ---
+Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+EOF
+      echo "清理与修复配置已追加。"
+  fi
+
+  # 5. 校验配置语法
+  unattended-upgrades --dry-run >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+      echo "警告：unattended-upgrades 配置校验失败，请检查 $FILE_50"
+  fi
+
+  # 6. 配置 Systemd Timer Drop-in
+  mkdir -p "$TIMER_CONF_DIR"
+  cat <<EOF > "$TIMER_CONF_FILE"
+[Timer]
+OnCalendar=
+OnCalendar=02:00
+RandomizedDelaySec=0
+EOF
+
+  # 7. 生效配置
+  systemctl daemon-reload
+  systemctl enable --now apt-daily-upgrade.timer # 确保 timer 是 enable 状态
+  systemctl restart apt-daily-upgrade.timer
+
+  # 8. 状态展示
+  echo "--- 定时器下次执行预测 ---"
+  systemctl list-timers apt-daily-upgrade.timer --no-pager
+
+  judge "配置 自动更新工具 unattended-upgrades"
+}
+
 # 依赖安装
 dependency_install() {
 
@@ -283,10 +353,6 @@ dependency_install() {
   # DEBIAN_FRONTEND=noninteractive + -y 避免任何交互界面，放在一行 DEBIAN_FRONTEND 临时生效
   DEBIAN_FRONTEND=noninteractive ${INS} install wget zsh vim curl net-tools lsof screen jq bc vnstat bind9-dnsutils iperf3 -y
   check_result "安装基础依赖"
-
-  # 安装自动更新工具
-  export DEBIAN_FRONTEND=noninteractive && ${INS} install -y unattended-upgrades && printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Download-Upgradeable-Packages "1";\nAPT::Periodic::AutocleanInterval "7";\nAPT::Periodic::Unattended-Upgrade "1";\n' > /etc/apt/apt.conf.d/20auto-upgrades && systemctl restart unattended-upgrades
-  judge "安装 自动更新工具 unattended-upgrades"
 
   # 系统监控工具
   ${INS} install -y htop
@@ -377,6 +443,7 @@ install_base() {
   check_system
   chrony_install
   dependency_install
+  update_unattended_upgrades
   rc_local_enable
 }
 
