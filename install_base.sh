@@ -126,7 +126,7 @@ remove() {
 check_system() {
   if [[ "${ID}" == "debian" && ${VERSION_ID} -ge 8 ]]; then
     echo_ok "当前系统为 Debian ${VERSION_ID} ${VERSION}"
-    INS="apt"
+    INS="apt-get"
     $INS update
   else
     echo_error "当前系统为 ${ID} ${VERSION_ID} ${VERSION} 不在支持的系统列表内，安装中断"
