@@ -20,11 +20,21 @@ get_current_ssh_port() {
 sync_filters() {
 
   echo_info "写入 Nginx 异常拦截规则..."
-  # 针对 Stream 层探测（127.0.0.1:9）
-  cat <<EOF > /etc/fail2ban/filter.d/nginx-stream-nine.conf
+  # 针对 Stream TCP 层探测（127.0.0.1:9）
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-stream-nine-tcp.conf
 [Definition]
 # 正常业务绝不会转发到 9 端口，只有在 SNI 不匹配或空主机头时才触发
-failregex = ^.*\[error\].*client:\s*<HOST>.*127\.0\.0\.1:9
+# 匹配不含 "udp" 字样但包含 "client: " 且指向 9 端口的报错
+failregex = ^.*\[error\].*(?<!udp )client:\s*<HOST>.*127\.0\.0\.1:9
+ignoreregex =
+EOF
+
+  # 针对 Stream UDP 层探测（127.0.0.1:9）
+  cat <<EOF > /etc/fail2ban/filter.d/nginx-stream-nine-udp.conf
+[Definition]
+# 正常业务绝不会转发到 9 端口，只有在 SNI 不匹配或空主机头时才触发
+# 专门匹配带 "udp client" 且指向 9 端口的报错
+failregex = ^.*\[error\].*udp client:\s*<HOST>.*127\.0\.0\.1:9
 ignoreregex =
 EOF
 
@@ -281,19 +291,33 @@ findtime = 30m
 # 允许失败的最大次数
 maxretry = 2
 
-# 针对 Stream 层探测（127.0.0.1:9）
-[nginx-stream-nine]
+# 针对 Stream TCP 层探测（127.0.0.1:9）
+[nginx-stream-nine-tcp]
 enabled = true
 # 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
 # 2. 使用数字端口 80,443 避免服务名解析失败
-action = iptables-ipset-proto6[name=nginx-stream-nine, protocol=tcp, port="80,443", actname=nginx-stream-nine-tcp, blocktype=DROP]
-         iptables-ipset-proto6[name=nginx-stream-nine, protocol=udp, port="80,443", actname=nginx-stream-nine-udp, blocktype=DROP]
-filter = nginx-stream-nine
+action = iptables-ipset-proto6[name=nginx-stream-nine, protocol=tcp, port="80,443", actname=nginx-stream-nine-tcp-t, blocktype=DROP]
+         iptables-ipset-proto6[name=nginx-stream-nine, protocol=udp, port="80,443", actname=nginx-stream-nine-udp-t, blocktype=DROP]
+filter = nginx-stream-nine-tcp
 logpath = $nginx_stream_error_log
 backend = pyinotify
 bantime = 30d
 findtime = 1h
-maxretry = 5
+maxretry = 2
+
+# 针对 Stream UDP 层探测（127.0.0.1:9）
+[nginx-stream-nine-udp]
+enabled = true
+# 1. 显式拆分 Action，确保同时封锁 TCP 和 UDP (HTTP/3)
+# 2. 使用数字端口 80,443 避免服务名解析失败
+action = iptables-ipset-proto6[name=nginx-stream-nine, protocol=tcp, port="80,443", actname=nginx-stream-nine-tcp-u, blocktype=DROP]
+         iptables-ipset-proto6[name=nginx-stream-nine, protocol=udp, port="80,443", actname=nginx-stream-nine-udp-u, blocktype=DROP]
+filter = nginx-stream-nine-udp
+logpath = $nginx_stream_error_log
+backend = pyinotify
+bantime = 30d
+findtime = 10m
+maxretry = 50
 
 # 针对 HTTP 层陷阱（444）
 [nginx-444]
