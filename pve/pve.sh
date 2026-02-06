@@ -1192,7 +1192,7 @@ rm $tmpf
 echo 修改页面高度
 disk_count=$(lsblk -d -o NAME | grep -cE 'sd[a-z]|nvme[0-9]')
 # 高度变量，某些CPU核心过多，或者想显示那个PVE存储库那一行，导致高度不够，修改69为合适的数字，如80、100等。
-height_increase=$((disk_count * 80))
+height_increase=$((disk_count * 100))
 
 node_status_new_height=$((400 + height_increase))
 sed -i -r '/widget\.pveNodeStatus/,+5{/height/{s#[0-9]+#'$node_status_new_height'#}}' $pvemanagerlib
