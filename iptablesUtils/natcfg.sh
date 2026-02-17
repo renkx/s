@@ -79,8 +79,8 @@ init_kernel
 while true; do
     # 每次循环都检查一次基础规则是否存在，不存在则补上
     ensure_base_policy
-
-    localIP=$(ip -o -4 addr list | grep -Ev '\s(docker|lo)' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
+    # 稳健获取出口IP
+    localIP=$(ip route get 119.29.29.29 2>/dev/null | grep -Po '(?<=src )(\d{1,3}.){3}\d{1,3}' || ip -o -4 addr list | grep -Ev '\s(docker|lo)' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
 
     while read -r line || [ -n "$line" ]; do
         [[ -z "$line" || "$line" == "#"* ]] && continue
