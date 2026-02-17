@@ -185,8 +185,8 @@ while true; do
             ensure_base_policy
 
             # 初始化计数器
-            local v4_success=0
-            local v6_success=0
+            v4_success=0
+            v6_success=0
 
             for config in "${valid_configs[@]}"; do
                 IFS='|' read -r lp rp rpt ver <<< "$config"
