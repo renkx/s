@@ -184,18 +184,24 @@ while true; do
             clear_all_rules
             ensure_base_policy
 
+            # 初始化计数器
+            local v4_success=0
+            local v6_success=0
+
             for config in "${valid_configs[@]}"; do
                 IFS='|' read -r lp rp rpt ver <<< "$config"
                 if [ "$ver" = "v4" ] && [ -n "$localIP4" ]; then
                     apply_rules $lp $rp $rpt $localIP4 v4
                     echo "$rp" > "$base/${lp}.v4"
+                    ((v4_success++))
                 elif [ "$ver" = "v6" ] && [ -n "$localIP6" ]; then
                     apply_rules $lp $rp $rpt $localIP6 v6
                     echo "$rp" > "$base/${lp}.v6"
+                    ((v6_success++))
                 fi
             done
 
-            echo "[SUCCESS] 已同步 ${#valid_configs[@]} 条规则"
+            echo "[SUCCESS] ${#valid_configs[@]} 条规则，同步完成: IPv4规则 ${v4_success} 条, IPv6规则 ${v6_success} 条"
         fi
     fi
     sleep 5
