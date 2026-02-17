@@ -64,8 +64,10 @@ bash <(curl -fsSL https://www.arloor.com/sh/iptablesUtils/natcfg.sh)
 # 以下是改版，上面旧脚本不要使用了
 bash <(curl -fsSL https://raw.githubusercontent.com/renkx/s/main/iptablesUtils/natcfg.sh)
 bash <(curl -fsSL https://gitee.com/renkx/ss/raw/main/iptablesUtils/natcfg.sh)
+# 卸载
+bash <(curl -fsSL https://raw.githubusercontent.com/renkx/s/main/iptablesUtils/dnat-uninstall.sh)
 ## iptables转发配置，创建软连接（创建完成后，执行脚本的时候选择：强制刷新服务，就可以了）
-ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
+mkdir -p /etc/dnat && ln -sf ~/ag/conf/default/dnatconf /etc/dnat/conf
 # 实时查看日志
 journalctl -u dnat -f
 # 说明：其他用户态（比如 realm、nginx）比 iptables（内核态/NAT）会在转发机上产生 2 条 conntrack 记录（客户端<->转发机，转发机<->落地机）
