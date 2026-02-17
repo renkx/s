@@ -8,13 +8,23 @@ mkdir -p $base 2>/dev/null
 conf=$base/conf
 touch $conf
 
-# 准备工作：安装依赖并初始化 ipset
+# 准备工作：按需安装依赖并初始化 ipset
 init_dependency() {
-    echo "正在安装依赖...."
-    apt update -y &> /dev/null
-    apt install -y dnsutils ipset &> /dev/null
+    local needs_install=false
 
-    # 创建 ipset 集合，hash:ip,port 模式
+    # 1. 检查必要命令是否存在
+    if ! type dig >/dev/null 2>&1 || ! type ipset >/dev/null 2>&1; then
+        needs_install=true
+    fi
+
+    # 2. 只有缺失依赖时才运行 apt
+    if [ "$needs_install" = "true" ]; then
+        echo "检测到依赖缺失，正在安装...."
+        apt update -y &> /dev/null
+        apt install -y dnsutils ipset &> /dev/null
+    fi
+
+    # 3. 检查并创建 ipset 集合 (这个命令自带 -exist，执行极快，不卡顿)
     ipset create dnat_whitelist hash:ip,port -exist
 }
 
@@ -216,7 +226,7 @@ rmDnat(){
 
 init_dependency
 clear
-echo -e "${red}>>> iptables DNAT 管理脚本 (ipset 模式) <<<${black}"
+echo -e "${red}>>> iptables DNAT 管理脚本 <<<${black}"
 
 select todo in 增加转发规则 删除转发规则 强制刷新服务 查看当前ipset放行名单 查看iptables配置
 do
