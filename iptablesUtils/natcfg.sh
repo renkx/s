@@ -35,10 +35,12 @@ init_kernel(){
 # 2. 核心策略保活（放入循环，应对 UFW 重置）
 ensure_base_policy(){
     # 允许回程流量 (最高优先级)
-    iptables -C FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+    iptables -C FORWARD -m state --state RELATED,ESTABLISHED -m comment --comment "dnat_rule" -j ACCEPT 2>/dev/null || \
+    iptables -I FORWARD 1 -m state --state RELATED,ESTABLISHED -m comment --comment "dnat_rule" -j ACCEPT
 
     # 允许匹配 ipset 的转发
-    iptables -C FORWARD -m set --match-set $ipset_name dst,dst -m comment --comment "dnat_rule" -j ACCEPT 2>/dev/null || iptables -A FORWARD -m set --match-set $ipset_name dst,dst -m comment --comment "dnat_rule" -j ACCEPT
+    iptables -C FORWARD -m set --match-set $ipset_name dst,dst -m comment --comment "dnat_rule" -j ACCEPT 2>/dev/null || \
+    iptables -A FORWARD -m set --match-set $ipset_name dst,dst -m comment --comment "dnat_rule" -j ACCEPT
 }
 
 # 3. 清理逻辑
