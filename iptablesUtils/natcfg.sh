@@ -145,7 +145,7 @@ addDnat(){
     [[ ! $lport =~ ^[0-9]+$ || ! $rport =~ ^[0-9]+$ ]] && echo "端口必须是数字" && return
 
     # 先清除旧配置行
-    sed -i "/^$lport>.*/d" $conf
+    sed -i --follow-symlinks "/^$lport>.*/d" $conf
     # 确保文件末尾有换行并追加
     [ -n "$(tail -c1 $conf 2>/dev/null)" ] && echo "" >> $conf
     echo "$lport>$rhost:$rport" >> $conf
@@ -156,7 +156,7 @@ addDnat(){
 
 rmDnat(){
     echo -n "要删除的本地端口号:" ;read lport
-    sed -i "/^$lport>.*/d" $conf
+    sed -i --follow-symlinks "/^$lport>.*/d" $conf
     # 删除缓存的 IP 记录，触发 dnat.sh 逻辑（或手动重启）
     rm -f $base/${lport}.ip
     echo "删除完成，正在重启服务应用变更..."
