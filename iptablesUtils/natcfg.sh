@@ -223,7 +223,7 @@ do
     case $todo in
     增加转发规则) addDnat ;;
     删除转发规则) rmDnat ;;
-    强制刷新服务) setupService ;;
+    强制刷新服务) setupService && ipset list dnat_whitelist ;;
     查看当前ipset放行名单) ipset list dnat_whitelist ;;
     查看iptables配置)
         echo "--- NAT表 ---"
