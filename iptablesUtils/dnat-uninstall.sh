@@ -19,30 +19,37 @@ if [ -L "$base/conf" ]; then
 fi
 rm -rf $base
 rm -f /usr/local/bin/dnat.sh
-rm -f /iptables_nat.sh # 清理旧脚本可能留下的残留
 
-# 3. 清理 iptables NAT 规则
-iptables -t nat -F PREROUTING
-iptables -t nat -F POSTROUTING
+# 3. 精准清理 iptables NAT 规则 (PREROUTING & POSTROUTING)
+echo "正在从 NAT 表中移除 DNAT/SNAT 规则..."
+for chain in PREROUTING POSTROUTING; do
+    while true; do
+        # 寻找带有 dnat_rule 备注的规则编号
+        num=$(iptables -t nat -L $chain --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1)
+        [ -z "$num" ] && break
+        iptables -t nat -D $chain $num
+    done
+done
 
-# 4. 清理 FORWARD 链上的精准放行规则 (关键点)
-# 查找并删除包含 dnat_whitelist 的规则
-echo "清理 FORWARD 链..."
+# 4. 精准清理 FORWARD 链规则
+echo "正在从 FORWARD 链中移除放行规则..."
+while true; do
+    # 无论是匹配 ipset 的还是基础放行，只要带标签就删
+    num=$(iptables -L FORWARD --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1)
+    [ -z "$num" ] && break
+    iptables -D FORWARD $num
+done
+
+# 特殊处理：如果没有标签但包含 dnat_whitelist 的遗留规则（兼容旧版本）
 while iptables -L FORWARD --line-numbers | grep -q "dnat_whitelist"; do
-    index=$(iptables -L FORWARD --line-numbers | grep "dnat_whitelist" | head -n 1 | awk '{print $1}')
-    iptables -D FORWARD $index
+    num=$(iptables -L FORWARD --line-numbers | grep "dnat_whitelist" | head -n 1 | awk '{print $1}')
+    iptables -D FORWARD $num
 done
 
-# 查找并删除 RELATED,ESTABLISHED 规则（如果担心误删其他服务的，可以跳过，但建议清理）
-while iptables -L FORWARD --line-numbers | grep -q "RELATED,ESTABLISHED"; do
-    index=$(iptables -L FORWARD --line-numbers | grep "RELATED,ESTABLISHED" | head -n 1 | awk '{print $1}')
-    iptables -D FORWARD $index
-done
-
-# 5. 销毁 ipset 集合 (关键点)
+# 5. 销毁 ipset 集合
 echo "清理 ipset 集合..."
 ipset flush dnat_whitelist 2>/dev/null
 ipset destroy dnat_whitelist 2>/dev/null
 
-echo -e "${red}卸载完成！${black}"
+echo -e "${red}卸载完成！已精准清理所有相关规则，未干扰其他服务。${black}"
 echo "注意：内核转发参数 (net.ipv4.ip_forward) 仍保持开启状态，如需关闭请手动执行: sysctl -w net.ipv4.ip_forward=0"

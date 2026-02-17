@@ -38,23 +38,37 @@ ensure_base_policy(){
     iptables -C FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
     # 允许匹配 ipset 的转发
-    iptables -C FORWARD -m set --match-set $ipset_name dst,dst -j ACCEPT 2>/dev/null || iptables -A FORWARD -m set --match-set $ipset_name dst,dst -j ACCEPT
+    iptables -C FORWARD -m set --match-set $ipset_name dst,dst -m comment --comment "dnat_rule" -j ACCEPT 2>/dev/null || iptables -A FORWARD -m set --match-set $ipset_name dst,dst -m comment --comment "dnat_rule" -j ACCEPT
 }
 
 # 3. 清理逻辑
 clear_all_rules() {
-    iptables -t nat -F PREROUTING
-    iptables -t nat -F POSTROUTING
+    # 精准删除 iptables NAT 规则 (PREROUTING & POSTROUTING)
+    for chain in PREROUTING POSTROUTING; do
+        while true; do
+            num=$(iptables -t nat -L $chain --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1)
+            [ -z "$num" ] && break
+            iptables -t nat -D $chain $num
+        done
+    done
+
+    # 精准删除 FORWARD (虽然 ensure_base_policy 会补，但清理干净更稳)
+    while true; do
+        num=$(iptables -L FORWARD --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1)
+        [ -z "$num" ] && break
+        iptables -D FORWARD $num
+    done
+
     ipset flush $ipset_name 2>/dev/null
 }
 
 apply_rules() {
     local lport=$1; local rhost=$2; local rport=$3; local lip=$4
     # 因为我们现在走的是“全量刷新”逻辑，进来前已经清空过了
-    iptables -t nat -A PREROUTING -p tcp --dport $lport -j DNAT --to-destination $rhost:$rport
-    iptables -t nat -A PREROUTING -p udp --dport $lport -j DNAT --to-destination $rhost:$rport
-    iptables -t nat -A POSTROUTING -p tcp -d $rhost --dport $rport -j SNAT --to-source $lip
-    iptables -t nat -A POSTROUTING -p udp -d $rhost --dport $rport -j SNAT --to-source $lip
+    iptables -t nat -A PREROUTING -p tcp --dport $lport -m comment --comment "dnat_rule" -j DNAT --to-destination $rhost:$rport
+    iptables -t nat -A PREROUTING -p udp --dport $lport -m comment --comment "dnat_rule" -j DNAT --to-destination $rhost:$rport
+    iptables -t nat -A POSTROUTING -p tcp -d $rhost --dport $rport -m comment --comment "dnat_rule" -j SNAT --to-source $lip
+    iptables -t nat -A POSTROUTING -p udp -d $rhost --dport $rport -m comment --comment "dnat_rule" -j SNAT --to-source $lip
     # 更新 ipset 通行证
     ipset add $ipset_name $rhost,tcp:$rport -exist
     ipset add $ipset_name $rhost,udp:$rport -exist
