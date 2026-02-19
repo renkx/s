@@ -55,7 +55,7 @@ EOF
 # 3. 拦截特定语种/API 的 POST 探测 (en, api, shop 等)
 
 failregex = ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD) [^"]+\.(?:php|asp|aspx|jsp|cgi|env|git|yml|sql|bak|tar|gz|zip|rar|sh)(?:[\s?][^"]*)? HTTP[^"]*" (?:400|401|403|404)
-            ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD) [^"]*/(?:phpmyadmin|admin|setup|manager|dashboard|wp-login|xmlrpc|actuator|config|auth|login)[^"]* HTTP[^"]*" (?:400|401|403|404)
+            ^<HOST> - \S+ \[.*\] "(?:GET|POST|HEAD) [^"]*/(?:phpmyadmin|admin|setup|manager|dashboard|wp-login|xmlrpc|actuator|config|auth|login)[^"]* HTTP[^"]*" (?:400|403|404)
             ^<HOST> - \S+ \[.*\] "POST /(?:en|de|es|fr|api|shop|posts) HTTP[^"]*" 404
 
 ignoregex =
