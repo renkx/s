@@ -113,19 +113,29 @@ apply_rules() {
 
 init_kernel
 last_md5=""
+last_lip4=""
+last_lip6=""
 
 while true; do
-    # 每次循环都检查一次基础规则是否存在，不存在则补上
-    ensure_base_policy
     # 确保 ipset 存在（防止被意外删除）
     init_ipset
+    # 每次循环都检查一次基础规则是否存在，不存在则补上
+    ensure_base_policy
 
     # 预先探测本地双栈能力
-    localIP4=$(ip route get 119.29.29.29 2>/dev/null | grep -Po '(?<=src )(\d{1,3}.){3}\d{1,3}' || ip -o -4 addr list | grep -Ev '\s(docker|lo)' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
-    localIP6=$(ip -6 route get 2400:3200::1 2>/dev/null | grep -Po '(?<=src )[0-9a-fA-F:]+' || ip -o -6 addr list | grep 'scope global' | grep -v 'temporary' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
+    localIP4=$(ip -4 route get 119.29.29.29 2>/dev/null | grep -Po '(?<=src )(\d{1,3}.){3}\d{1,3}' || ip -o -4 addr list | grep 'scope global' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
+    # 获取全球单播 IPv6 (排除 ::1, fe80, tentative)
+    localIP6=$(ip -6 route get 2400:3200::1 2>/dev/null | grep -Po '(?<=src )[0-9a-fA-F:]+' | grep -vE '^::1$|^fe80')
+    if [ -z "$localIP6" ]; then
+        localIP6=$(ip -o -6 addr list | grep 'scope global' | grep -vE 'temporary|tentative' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
+    fi
 
     [ -n "$localIP4" ] && HAS_LOCAL_V4=true || HAS_LOCAL_V4=false
-    [ -n "$localIP6" ] && HAS_LOCAL_V6=true || HAS_LOCAL_V6=false
+    [ -n "$localIP6" ] && [ "$localIP6" != "::1" ] && HAS_LOCAL_V6=true || HAS_LOCAL_V6=false
+
+    # 判断本地 IP 是否发生变化
+    ip_changed=false
+    [[ "$localIP4" != "$last_lip4" || "$localIP6" != "$last_lip6" ]] && ip_changed=true
 
     # 统计 ipset 条目数
     v4_ipset_count=$(ipset list $ipset_v4 2>/dev/null | awk '/Number of entries:/ {print $4}')
@@ -179,7 +189,7 @@ while true; do
     v4_lost=$([ ${#valid_v4_configs[@]} -gt 0 ] && [ "$v4_ipset_count" -eq 0 ] && echo true || echo false)
     v6_lost=$([ ${#valid_v6_configs[@]} -gt 0 ] && [ "$v6_ipset_count" -eq 0 ] && echo true || echo false)
 
-    if [ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v4_lost" = "true" ] || [ "$v6_lost" = "true" ]; then
+    if [ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v4_lost" = "true" ] || [ "$v6_lost" = "true" ] || [ "$ip_changed" = "true" ]; then
 
         # 如果配置里有行数，但解析出的 v4 和 v6 都是 0
         if [ "$conf_line_count" -gt 0 ] && [ ${#valid_v4_configs[@]} -eq 0 ] && [ ${#valid_v6_configs[@]} -eq 0 ]; then
@@ -189,16 +199,16 @@ while true; do
             continue
         fi
 
-        echo "[$(date '+%m-%d %H:%M:%S')] 变更检测: MD5($md5_changed) DNS($dns_changed) v4丢失($v4_lost) v6丢失($v6_lost)"
+        echo "[$(date '+%m-%d %H:%M:%S')] 变更检测: MD5($md5_changed) DNS($dns_changed) v4丢失($v4_lost) v6丢失($v6_lost) 本机IP变动($ip_changed)"
 
-        # 仅在有有效 IPv4 配置 OR 用户故意清空了配置时，执行 v4 清理和重建
-        if ([ ${#valid_v4_configs[@]} -gt 0 ] || [ "$conf_line_count" -eq 0 ]) && ([ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v4_lost" = "true" ]); then
-            # 如果是 md5 变了且行数为 0，说明用户想删光规则
-           if [ "$conf_line_count" -eq 0 ] && [ "$md5_changed" = "true" ]; then
+        # 处理 IPv4
+        if ([ ${#valid_v4_configs[@]} -gt 0 ] || [ "$conf_line_count" -eq 0 ]) && ([ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v4_lost" = "true" ] || [ "$ip_changed" = "true" ]); then
+           if [ "$conf_line_count" -eq 0 ]; then
                echo "[INFO] 配置文件已清空，正在清理所有 IPv4 转发规则..."
                init_ipset
                clear_v4_rules
-           else
+               rm -f $base/*.v4
+           elif [ "$HAS_LOCAL_V4" = "true" ]; then
               init_ipset
               clear_v4_rules
               ensure_base_policy
@@ -207,27 +217,31 @@ while true; do
                   apply_rules $lp $rp $rpt $localIP4 v4
                   echo "$rp" > "$base/${lp}.v4"
               done
-              echo "[IPv4] 同步完成: ${#valid_v4_configs[@]} 条规则"
+              last_lip4=$localIP4
+              echo "[IPv4] 同步完成: ${#valid_v4_configs[@]} 条规则，(IP: $localIP4)"
            fi
         fi
 
-        if ([ ${#valid_v6_configs[@]} -gt 0 ] || [ "$conf_line_count" -eq 0 ]) && ([ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v6_lost" = "true" ]); then
-            # 如果是 md5 变了且行数为 0，说明用户想删光规则
-             if [ "$conf_line_count" -eq 0 ] && [ "$md5_changed" = "true" ]; then
-                 echo "[INFO] 配置文件已清空，正在清理所有 IPv6 转发规则..."
-                 init_ipset
-                 clear_v6_rules
-             else
-                init_ipset
-                clear_v6_rules
-                ensure_base_policy
-                for cfg in "${valid_v6_configs[@]}"; do
-                    IFS='|' read -r lp rp rpt <<< "$cfg"
-                    apply_rules $lp $rp $rpt $localIP6 v6
-                    echo "$rp" > "$base/${lp}.v6"
-                done
-                echo "[IPv6] 同步完成: ${#valid_v6_configs[@]} 条规则"
-             fi
+        if ([ ${#valid_v6_configs[@]} -gt 0 ] || [ "$conf_line_count" -eq 0 ]) && ([ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v6_lost" = "true" ] || [ "$ip_changed" = "true" ]); then
+           if [ "$conf_line_count" -eq 0 ]; then
+               echo "[INFO] 配置文件已清空，正在清理所有 IPv6 转发规则..."
+               init_ipset
+               clear_v6_rules
+               rm -f $base/*.v6
+           elif [ "$HAS_LOCAL_V6" = "true" ]; then
+              init_ipset
+              clear_v6_rules
+              ensure_base_policy
+              for cfg in "${valid_v6_configs[@]}"; do
+                  IFS='|' read -r lp rp rpt <<< "$cfg"
+                  apply_rules $lp $rp $rpt $localIP6 v6
+                  echo "$rp" > "$base/${lp}.v6"
+              done
+              last_lip6=$localIP6
+              echo "[IPv6] 同步完成: ${#valid_v6_configs[@]} 条规则，(IP: $localIP6)"
+           else
+              echo "[WARN] IPv6 配置存在但本地公网 IPv6 未就绪，暂存请求"
+           fi
         fi
 
         last_md5=$current_md5
