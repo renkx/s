@@ -45,6 +45,12 @@ init_kernel(){
     sysctl -w net.ipv6.conf.all.forwarding=1 > /dev/null
 }
 
+init_ipset() {
+    # 创建两个集合，一个处理 v4，一个处理 v6
+    ipset create $ipset_v4 hash:ip,port -exist
+    ipset create $ipset_v6 hash:ip,port family inet6 -exist
+}
+
 # 2. 核心策略保活 (双栈)
 ensure_base_policy(){
     # IPv4
@@ -60,9 +66,8 @@ ensure_base_policy(){
     ip6tables -A FORWARD -m set --match-set $ipset_v6 dst,dst -m comment --comment "dnat_rule" -j ACCEPT
 }
 
-# 3. 清理逻辑 (双栈)
-clear_all_rules() {
-    # 清理 IPv4 NAT & FORWARD
+clear_v4_rules() {
+    # 仅清理 IPv4 相关
     for chain in PREROUTING POSTROUTING; do
         while num=$(iptables -t nat -L $chain --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1) && [ -n "$num" ]; do
             iptables -t nat -D $chain $num
@@ -71,8 +76,11 @@ clear_all_rules() {
     while num=$(iptables -L FORWARD --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1) && [ -n "$num" ]; do
         iptables -D FORWARD $num
     done
+    ipset flush $ipset_v4 2>/dev/null
+}
 
-    # 清理 IPv6 NAT & FORWARD
+clear_v6_rules() {
+    # 仅清理 IPv6 相关
     for chain in PREROUTING POSTROUTING; do
         while num=$(ip6tables -t nat -L $chain --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1) && [ -n "$num" ]; do
             ip6tables -t nat -D $chain $num
@@ -81,8 +89,6 @@ clear_all_rules() {
     while num=$(ip6tables -L FORWARD --line-numbers | grep "dnat_rule" | awk '{print $1}' | head -n 1) && [ -n "$num" ]; do
         ip6tables -D FORWARD $num
     done
-
-    ipset flush $ipset_v4 2>/dev/null
     ipset flush $ipset_v6 2>/dev/null
 }
 
@@ -111,19 +117,29 @@ last_md5=""
 while true; do
     # 每次循环都检查一次基础规则是否存在，不存在则补上
     ensure_base_policy
+    # 确保 ipset 存在（防止被意外删除）
+    init_ipset
 
-    # 0. 预先探测本地双栈能力
+    # 预先探测本地双栈能力
     localIP4=$(ip route get 119.29.29.29 2>/dev/null | grep -Po '(?<=src )(\d{1,3}.){3}\d{1,3}' || ip -o -4 addr list | grep -Ev '\s(docker|lo)' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
     localIP6=$(ip -6 route get 2400:3200::1 2>/dev/null | grep -Po '(?<=src )[0-9a-fA-F:]+' || ip -o -6 addr list | grep 'scope global' | grep -v 'temporary' | awk '{print $4}' | cut -d/ -f1 | head -n 1)
 
     [ -n "$localIP4" ] && HAS_LOCAL_V4=true || HAS_LOCAL_V4=false
     [ -n "$localIP6" ] && HAS_LOCAL_V6=true || HAS_LOCAL_V6=false
 
+    # 统计 ipset 条目数
+    v4_ipset_count=$(ipset list $ipset_v4 2>/dev/null | awk '/Number of entries:/ {print $4}')
+    : ${v4_ipset_count:=0} # 如果为空则设为 0
+    v6_ipset_count=$(ipset list $ipset_v6 2>/dev/null | awk '/Number of entries:/ {print $4}')
+    : ${v6_ipset_count:=0} # 如果为空则设为 0
+
     # 准备本轮解析的内存缓存
-    valid_configs=()
+    valid_v4_configs=()
+    valid_v6_configs=()
     conf_line_count=0
     dns_changed=false
 
+    # 解析配置文件
     while read -r line || [ -n "$line" ]; do
         [[ -z "$line" || "$line" == "#"* ]] && continue
         ((conf_line_count++))
@@ -132,77 +148,89 @@ while true; do
         rhost_name=$(echo $r_part | cut -d':' -f1)
         rport=$(echo $r_part | cut -d':' -f2)
 
-        # --- IPv4 处理逻辑 ---
+        # IPv4 解析
         if [ "$HAS_LOCAL_V4" = "true" ]; then
-            if [[ $rhost_name =~ ^[0-9.]+$ ]]; then
-                rip4=$rhost_name
-            else
-                rip4=$(dig +short +time=1 +tries=1 A $rhost_name | grep -E '^[0-9.]+$' | head -n1)
-            fi
-
+            [[ $rhost_name =~ ^[0-9.]+$ ]] && rip4=$rhost_name || rip4=$(dig +short +time=1 +tries=1 A $rhost_name | grep -E '^[0-9.]+$' | head -n1)
             old_v4=$(cat "$base/${lport}.v4" 2>/dev/null)
-            [ -z "$rip4" ] && rip4=$old_v4 # 降级使用历史IP
-
+            [ -z "$rip4" ] && rip4=$old_v4
             if [ -n "$rip4" ]; then
-                valid_configs+=("$lport|$rip4|$rport|v4")
+                valid_v4_configs+=("$lport|$rip4|$rport")
                 [ "$rip4" != "$old_v4" ] && dns_changed=true
             fi
         fi
 
-        # --- IPv6 处理逻辑 (只有本地支持 V6 才解析) ---
+        # IPv6 解析
         if [ "$HAS_LOCAL_V6" = "true" ]; then
-            if [[ $rhost_name =~ : ]]; then
-                rip6=$rhost_name
-            else
-                rip6=$(dig +short +time=1 +tries=1 AAAA $rhost_name | grep -E '^[0-9a-fA-F:]+$' | head -n1)
-            fi
-
+            [[ $rhost_name =~ : ]] && rip6=$rhost_name || rip6=$(dig +short +time=1 +tries=1 AAAA $rhost_name | grep -E '^[0-9a-fA-F:]+$' | head -n1)
             old_v6=$(cat "$base/${lport}.v6" 2>/dev/null)
             [ -z "$rip6" ] && rip6=$old_v6
-
             if [ -n "$rip6" ]; then
-                valid_configs+=("$lport|$rip6|$rport|v6")
+                valid_v6_configs+=("$lport|$rip6|$rport")
                 [ "$rip6" != "$old_v6" ] && dns_changed=true
             fi
         fi
     done < "$conf"
 
+    # 配置文件 MD5 变化检查
     current_md5=$(md5sum "$conf" 2>/dev/null | awk '{print $1}')
-    md5_changed=false
-    if [ "$current_md5" != "$last_md5" ]; then
-        md5_changed=true
-        last_md5=$current_md5
-    fi
+    md5_changed=$([ "$current_md5" != "$last_md5" ] && echo true || echo false)
 
-    if [ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ]; then
-        if [ "$conf_line_count" -gt 0 ] && [ "${#valid_configs[@]}" -eq 0 ]; then
-            echo "[CRITICAL] 所有解析均失败且无缓存，放弃本次重载"
-            last_md5="RETRY"
-        else
-            echo "[$(date '+%m-%d %H:%M:%S')] 触发重载 (MD5:$md5_changed, DNS:$dns_changed)"
+    # 检测 ipset 丢失 (配置有但 ipset 没数据)
+    v4_lost=$([ ${#valid_v4_configs[@]} -gt 0 ] && [ "$v4_ipset_count" -eq 0 ] && echo true || echo false)
+    v6_lost=$([ ${#valid_v6_configs[@]} -gt 0 ] && [ "$v6_ipset_count" -eq 0 ] && echo true || echo false)
 
-            clear_all_rules
-            ensure_base_policy
+    if [ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v4_lost" = "true" ] || [ "$v6_lost" = "true" ]; then
 
-            # 初始化计数器
-            v4_success=0
-            v6_success=0
+        # 如果配置里有行数，但解析出的 v4 和 v6 都是 0
+        if [ "$conf_line_count" -gt 0 ] && [ ${#valid_v4_configs[@]} -eq 0 ] && [ ${#valid_v6_configs[@]} -eq 0 ]; then
+            echo "[CRITICAL] 配置文件有更新，但 V4/V6 解析全部失败且无缓存！为防止误删，本次不执行更新。"
+            last_md5="RETRY" # 强制下次循环继续进入此判断，直到解析成功
+            sleep 5
+            continue
+        fi
 
-            for config in "${valid_configs[@]}"; do
-                IFS='|' read -r lp rp rpt ver <<< "$config"
-                if [ "$ver" = "v4" ] && [ -n "$localIP4" ]; then
-                    apply_rules $lp $rp $rpt $localIP4 v4
-                    echo "$rp" > "$base/${lp}.v4"
-                    ((v4_success++))
-                elif [ "$ver" = "v6" ] && [ -n "$localIP6" ]; then
+        echo "[$(date '+%m-%d %H:%M:%S')] 变更检测: MD5($md5_changed) DNS($dns_changed) v4丢失($v4_lost) v6丢失($v6_lost)"
+
+        # 仅在有有效 IPv4 配置 OR 用户故意清空了配置时，执行 v4 清理和重建
+        if ([ ${#valid_v4_configs[@]} -gt 0 ] || [ "$conf_line_count" -eq 0 ]) && ([ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v4_lost" = "true" ]); then
+            # 如果是 md5 变了且行数为 0，说明用户想删光规则
+           if [ "$conf_line_count" -eq 0 ] && [ "$md5_changed" = "true" ]; then
+               echo "[INFO] 配置文件已清空，正在清理所有 IPv4 转发规则..."
+               init_ipset
+               clear_v4_rules
+           else
+              init_ipset
+              clear_v4_rules
+              ensure_base_policy
+              for cfg in "${valid_v4_configs[@]}"; do
+                  IFS='|' read -r lp rp rpt <<< "$cfg"
+                  apply_rules $lp $rp $rpt $localIP4 v4
+                  echo "$rp" > "$base/${lp}.v4"
+              done
+              echo "[IPv4] 同步完成: ${#valid_v4_configs[@]} 条规则"
+           fi
+        fi
+
+        if ([ ${#valid_v6_configs[@]} -gt 0 ] || [ "$conf_line_count" -eq 0 ]) && ([ "$md5_changed" = "true" ] || [ "$dns_changed" = "true" ] || [ "$v6_lost" = "true" ]); then
+            # 如果是 md5 变了且行数为 0，说明用户想删光规则
+             if [ "$conf_line_count" -eq 0 ] && [ "$md5_changed" = "true" ]; then
+                 echo "[INFO] 配置文件已清空，正在清理所有 IPv6 转发规则..."
+                 init_ipset
+                 clear_v6_rules
+             else
+                init_ipset
+                clear_v6_rules
+                ensure_base_policy
+                for cfg in "${valid_v6_configs[@]}"; do
+                    IFS='|' read -r lp rp rpt <<< "$cfg"
                     apply_rules $lp $rp $rpt $localIP6 v6
                     echo "$rp" > "$base/${lp}.v6"
-                    ((v6_success++))
-                fi
-            done
-
-            echo "[SUCCESS] ${#valid_configs[@]} 条规则，同步完成: IPv4规则 ${v4_success} 条, IPv6规则 ${v6_success} 条"
+                done
+                echo "[IPv6] 同步完成: ${#valid_v6_configs[@]} 条规则"
+             fi
         fi
+
+        last_md5=$current_md5
     fi
     sleep 5
 done
