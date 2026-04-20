@@ -42,7 +42,8 @@ if [ "$MEM_MB" -le 600 ]; then
     TARGET_HASHSIZE="65536"
     VM_SWAPPINESS="20"        # 稍微积极一点使用 swap，保护物理内存不崩
     VM_DIRTY_RATIO="10"       # 减少脏数据堆积，防止小内存写磁盘时卡死
-    TCP_BUFFER_MAX="33554432" # 32MB 因为有 notsent_lowat 保底，降低发送延迟（但多连接跑满会爆内存，这是1个连接最大占用）
+    #TCP_BUFFER_MAX="33554432" # 32MB 因为有 notsent_lowat 保底，降低发送延迟（但多连接跑满会爆内存，这是1个连接最大占用）
+    TCP_BUFFER_MAX="16777216" # 16MB 保守
     VM_MIN_FREE="16384"       # 预留 16MB 紧急内存
 elif [ "$MEM_MB" -le 2048 ]; then
     # 标准级 VPS (512MB - 2GB) - 通用模式
@@ -52,7 +53,8 @@ elif [ "$MEM_MB" -le 2048 ]; then
     TARGET_HASHSIZE="131072"
     VM_SWAPPINESS="15"
     VM_DIRTY_RATIO="15"
-    TCP_BUFFER_MAX="67108864" # 64MB 因为有 notsent_lowat 保底，降低发送延迟（但多连接跑满会爆内存，这是1个连接最大占用）
+    #TCP_BUFFER_MAX="67108864" # 64MB 因为有 notsent_lowat 保底，降低发送延迟（但多连接跑满会爆内存，这是1个连接最大占用）
+    TCP_BUFFER_MAX="16777216" # 16MB 保守
     VM_MIN_FREE="32768"       # 预留 32MB
 else
     # 高性能服务器 (> 2GB) - 极速模式
@@ -62,7 +64,8 @@ else
     TARGET_HASHSIZE="327680"
     VM_SWAPPINESS="10"        # 尽量不用 swap
     VM_DIRTY_RATIO="20"       # 允许更多内存作为磁盘缓存
-    TCP_BUFFER_MAX="134217728" # 128M 因为有 notsent_lowat 保底，降低发送延迟
+    #TCP_BUFFER_MAX="134217728" # 128M 因为有 notsent_lowat 保底，降低发送延迟
+    TCP_BUFFER_MAX="16777216" # 16MB 保守
     VM_MIN_FREE="65536"       # 预留 64MB
 fi
 
@@ -155,7 +158,7 @@ net.core.wmem_max=$TCP_BUFFER_MAX
 net.ipv4.tcp_collapse_max_bytes=6291456
 # 降低缓冲区未发送数据阈值，减少 Bufferbloat (延迟优化关键)
 # BBR 配合此项可以显著降低大流量时的网页访问延迟
-net.ipv4.tcp_notsent_lowat=131072
+net.ipv4.tcp_notsent_lowat=16384
 # 自动调节接收缓冲，适应长距离传输
 net.ipv4.tcp_moderate_rcvbuf=1
 
