@@ -124,14 +124,16 @@ net.ipv4.tcp_recovery=1
 # 乱序容忍度 (Reordering Threshold)
 # 跨境链路设为 6-10 比较适合，减少误重传
 net.ipv4.tcp_reordering=8
-net.ipv4.tcp_autocorking=1
+# 禁用 Autocorking，VPN 场景下希望包越快发出去越好，降低延迟
+# 在高速传输时，内核会尝试合并小包。VPN 场景下，我们希望包越快发出去越好，禁用它可以降低延迟。
+net.ipv4.tcp_autocorking=0
 # 增加网卡处理数据包的预算。在高 PPS 流量下降低 CPU 占用
 net.core.netdev_budget=600
 net.core.netdev_budget_usecs=20000
 # 开启 RPS 相关的流控制，有助于在多核 CPU 上均匀分发网络压力
 net.core.rps_sock_flow_entries=65536
 # 缩短重试次数，让死连接更快被释放
-net.ipv4.tcp_orphan_retries=3
+net.ipv4.tcp_orphan_retries=1
 
 # =========================
 # Google BBR 专属优化 (关键)
@@ -168,7 +170,7 @@ net.ipv4.tcp_moderate_rcvbuf=1
 # 开启 TCP Fast Open (TFO)，设为 3 支持客户端和服务器模式
 net.ipv4.tcp_fastopen=3
 # 缩短孤儿连接的 FIN 等待时间
-net.ipv4.tcp_fin_timeout=30
+net.ipv4.tcp_fin_timeout=15
 # Keepalive 时间：300秒检测一次。防止防火墙或运营商剔除长连接
 net.ipv4.tcp_keepalive_time=300
 net.ipv4.tcp_keepalive_intvl=15
