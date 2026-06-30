@@ -162,89 +162,77 @@ gen_install_cert() {
 
     log "👉 处理域名: $domain (dns=$provider)"
 
+    local need_issue=0
+
     # 如果不是强制模式，且证书还在有效期内，则跳过
     if [ "$FORCE_RENEW" -eq 1 ]; then
         log "🚀 [手动模式] 强制申请开启"
+        need_issue=1
     else
         # 自动模式/常规运行：检查有效期
-        if ! check_cert_expiry "$fullchain_file" "$renew_limit"; then
+        if check_cert_expiry "$fullchain_file" "$renew_limit"; then
+            need_issue=1
+        fi
+    fi
+
+    # 只有当需要更新时，才走申请和安装逻辑
+    if [ "$need_issue" -eq 1 ]; then
+        # --- 自动创建证书存放目录 ---
+        # 使用 dirname 获取文件所在的父目录
+        local key_dir=$(dirname "$key_file")
+        local cert_dir=$(dirname "$fullchain_file")
+
+        if [ ! -d "$key_dir" ]; then
+            log "📁 创建 Key 存放目录: $key_dir"
+            mkdir -p "$key_dir"
+        fi
+
+        if [ ! -d "$cert_dir" ]; then
+            log "📁 创建证书存放目录: $cert_dir"
+            mkdir -p "$cert_dir"
+        fi
+
+        case "$provider" in
+          cf)
+            local TOKEN="${VALUE1:-$CF_Token}"
+            local ACCOUNT_ID="${VALUE2:-$CF_Account_ID}"
+            local ZONE_ID="${VALUE3:-$CF_Zone_ID}"
+
+            if [ -z "$TOKEN" ] || [ -z "$ACCOUNT_ID" ] || [ -z "$ZONE_ID" ]; then
+              log "⚠️ 跳过 $domain：CF 参数不完整"
+              continue
+            fi
+            export CF_Token="$TOKEN" CF_Account_ID="$ACCOUNT_ID" CF_Zone_ID="$ZONE_ID"
+            dns_type="dns_cf"
+            ;;
+          ali)
+            local KEY="${VALUE1:-$Ali_Key}"
+            local SECRET="${VALUE2:-$Ali_Secret}"
+
+            if [ -z "$KEY" ] || [ -z "$SECRET" ]; then
+              log "⚠️ 跳过 $domain：Aliyun 参数不完整"
+              continue
+            fi
+            export Ali_Key="$KEY" Ali_Secret="$SECRET"
+            dns_type="dns_ali"
+            ;;
+          *)
+            log "❌ 未知 DNS provider: $provider"
             continue
+            ;;
+        esac
+
+        # 申请并安装
+        if "$ACME_INS" --issue --dns "$dns_type" --keylength ec-256 --force -d "$domain"; then
+            if "$ACME_INS" --install-cert --ecc -d "$domain" --key-file "$key_file" --fullchain-file "$fullchain_file"; then
+                log "✅ 证书安装成功: $domain"
+                any_success=1  # 只有这里真正成功了，才会把状态置为 1
+            fi
+        else
+            log "❌ 申请证书失败: $domain"
         fi
     fi
-
-    # --- 自动创建证书存放目录 ---
-    # 使用 dirname 获取文件所在的父目录
-    local key_dir=$(dirname "$key_file")
-    local cert_dir=$(dirname "$fullchain_file")
-
-    if [ ! -d "$key_dir" ]; then
-        log "📁 创建 Key 存放目录: $key_dir"
-        mkdir -p "$key_dir"
-    fi
-
-    if [ ! -d "$cert_dir" ]; then
-        log "📁 创建证书存放目录: $cert_dir"
-        mkdir -p "$cert_dir"
-    fi
-
-    case "$provider" in
-      cf)
-        local TOKEN="${VALUE1:-$CF_Token}"
-        local ACCOUNT_ID="${VALUE2:-$CF_Account_ID}"
-        local ZONE_ID="${VALUE3:-$CF_Zone_ID}"
-
-        if [ -z "$TOKEN" ] || [ -z "$ACCOUNT_ID" ] || [ -z "$ZONE_ID" ]; then
-          log "⚠️ 跳过 $domain：CF 参数不完整"
-          continue
-        fi
-        export CF_Token="$TOKEN" CF_Account_ID="$ACCOUNT_ID" CF_Zone_ID="$ZONE_ID"
-        dns_type="dns_cf"
-        ;;
-      ali)
-        local KEY="${VALUE1:-$Ali_Key}"
-        local SECRET="${VALUE2:-$Ali_Secret}"
-
-        if [ -z "$KEY" ] || [ -z "$SECRET" ]; then
-          log "⚠️ 跳过 $domain：Aliyun 参数不完整"
-          continue
-        fi
-        export Ali_Key="$KEY" Ali_Secret="$SECRET"
-        dns_type="dns_ali"
-        ;;
-      *)
-        log "❌ 未知 DNS provider: $provider"
-        continue
-        ;;
-    esac
-
-    # 为执行路径加双引号，防止潜在空格问题
-    if ! "$ACME_INS" --issue \
-      --dns "$dns_type" \
-      --keylength ec-256 \
-      --force \
-      -d "$domain"; then
-      log "❌ 申请证书失败: $domain"
-      continue
-    fi
-
-    "$ACME_INS" --install-cert --ecc \
-      -d "$domain" \
-      --key-file "$key_file" \
-      --fullchain-file "$fullchain_file"
-
-    log "✅ 证书安装成功: $domain"
-    any_success=1
   done
-
-  if [ "${#POST_HOOK_COMMANDS[@]}" -gt 0 ]; then
-    log "测试：👉 执行证书后置命令"
-    for cmd in "${POST_HOOK_COMMANDS[@]}"; do
-      log "➡️ $cmd"
-      if ! bash -c "$cmd"; then
-        log "测试：⚠️ 后置命令执行失败: $cmd"
-      fi
-    done
-  fi
 
   # 后置命令执行逻辑
   if [ "$any_success" -eq 1 ] && [ "${#POST_HOOK_COMMANDS[@]}" -gt 0 ]; then
