@@ -236,6 +236,16 @@ gen_install_cert() {
     any_success=1
   done
 
+  if [ "${#POST_HOOK_COMMANDS[@]}" -gt 0 ]; then
+    log "测试：👉 执行证书后置命令"
+    for cmd in "${POST_HOOK_COMMANDS[@]}"; do
+      log "➡️ $cmd"
+      if ! bash -c "$cmd"; then
+        log "测试：⚠️ 后置命令执行失败: $cmd"
+      fi
+    done
+  fi
+
   # 后置命令执行逻辑
   if [ "$any_success" -eq 1 ] && [ "${#POST_HOOK_COMMANDS[@]}" -gt 0 ]; then
     log "👉 执行证书后置命令"
