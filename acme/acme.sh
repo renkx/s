@@ -297,6 +297,10 @@ generate_acme() {
 # 增加 set -u，如果变量没定义就报错，方便我们定位
 set -u
 
+# 加上这行，确保 cron 自动执行时能认得 curl 等命令
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
+
 # 接收配置文件路径参数
 CONF_FILE="$1"
 if [ -z "$CONF_FILE" ] || [ ! -f "$CONF_FILE" ]; then
