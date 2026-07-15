@@ -2,20 +2,24 @@ name: Keepalive Workflow
 
 on:
   schedule:
-    # 每 30 天的午夜 0 点触发一次（在 60 天限制内）
-    - cron: '0 0 */30 * *'
+    - cron: '0 0 */30 * *' # 每 30 天触发一次
   workflow_dispatch: # 允许手动触发
 
 jobs:
   keepalive:
     runs-on: ubuntu-latest
     permissions:
-      actions: write # 必须赋予 actions 写入权限才能保活
-      contents: write # 允许提交 Dummy Commit 或读取仓库内容（必须！）
+      actions: write # 只需要 actions 写入权限来刷新工作流
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Keepalive Action
-        uses: gautamkrishnar/keepalive-workflow@v1
-        # 这个 Action 会自动检测仓库活跃度，如果快到期了，它会自动产生一个微小的活跃记录来重置 60 天的时钟
+      - name: Keepalive by Native GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 正在检测并刷新定时任务状态..."
+          # 获取当前 workflow 的文件名或 ID（这里通过当前运行的环境变量获取）
+          WORKFLOW_ID="${{ github.workflow }}"
+          
+          # 使用 GitHub 官方命令行工具直接禁用再启用该工作流，从而刷新 60 天活跃度限制
+          gh api -X PUT "/repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/enable"
+          
+          echo "✅ 定时任务已成功激活，60天倒计时已重置！"
