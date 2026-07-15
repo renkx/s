@@ -2,7 +2,8 @@ name: Keepalive Workflow
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    # 每 30 天的午夜 0 点触发一次（在 60 天限制内保活）
+    - cron: '0 0 */30 * *'
   workflow_dispatch:
 
 jobs:
