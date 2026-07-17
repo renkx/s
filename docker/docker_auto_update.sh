@@ -177,16 +177,6 @@ check_network_env() {
 
 check_network_env
 
-if [[ "$IsGlobal" == "1" ]];then
-  echo "🌍 检测到海外环境，使用 GitHub 源"
-  UPDATE_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh"
-else
-  echo "🇨🇳 检测到国内环境，使用 Gitee 源"
-  UPDATE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh"
-fi
-
-echo "🚀 执行更新脚本：$UPDATE_URL"
-
 CURL_OPTS=(
   # 静默执行，不展示下载进度条
   --silent
@@ -194,28 +184,58 @@ CURL_OPTS=(
   --show-error
   # 自动跟随 HTTP 重定向（3xx）
   --location
-  # 最多等待 3 秒建立 TCP 连接
-  --connect-timeout 3
-  # 整个 curl 命令最大执行时间 = 10 秒
-  --max-time 10
+  # 最多等待 6 秒建立 TCP 连接
+  --connect-timeout 6
+  # 整个 curl 命令最大执行时间 = 15 秒
+  --max-time 15
   # 失败后自动重试 2 次
   --retry 2
   # 每次重试前等待 1 秒
   --retry-delay 1
 )
 
-# 直接使用数组展开 "${VALID_COMPOSE_DIRS[@]}"，完美处理空格
-if [ "${#VALID_COMPOSE_DIRS[@]}" -gt 0 ]; then
-  if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL") "${VALID_COMPOSE_DIRS[@]}"; then
-    echo "❌ 更新脚本执行失败"
-    exit 1
+GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_update.sh"
+GITEE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh"
+
+if [[ "$IsGlobal" == "1" ]]; then
+  echo "🌍 检测到海外环境，优先使用 GitHub 源..."
+  # 尝试读取 GitHub，如果失败则自动切换到 Gitee
+  if curl "${CURL_OPTS[@]}" "$GITHUB_URL" > /tmp/dynamic_docker_auto_update.sh 2>/tmp/docker_auto_update_curl_err.log; then
+    echo "🚀 GitHub 源下载成功"
+  else
+    echo "⚠️ GitHub 连接超时或失败，错误日志如下："
+    cat /tmp/docker_auto_update_curl_err.log
+    rm -f /tmp/docker_auto_update_curl_err.sh
+    echo "🔄 正在尝试切换到 Gitee 备用源..."
+    if ! curl "${CURL_OPTS[@]}" "$GITEE_URL" > /tmp/dynamic_docker_auto_update.sh; then
+      echo "❌ 所有更新源均不可用，执行失败"
+      exit 1
+    fi
   fi
 else
-  if ! bash <(curl "${CURL_OPTS[@]}" "$UPDATE_URL"); then
-    echo "❌ 更新脚本执行失败"
+  echo "🇨🇳 检测到国内环境，使用 Gitee 源"
+  if ! curl "${CURL_OPTS[@]}" "$GITEE_URL" > /tmp/dynamic_docker_auto_update.sh; then
+    echo "❌ Gitee 源下载失败"
     exit 1
   fi
 fi
+
+# 直接执行下载好的临时脚本
+if [ "${#VALID_COMPOSE_DIRS[@]}" -gt 0 ]; then
+  if ! bash /tmp/dynamic_docker_auto_update.sh "${VALID_COMPOSE_DIRS[@]}"; then
+    echo "❌ 更新脚本执行失败"
+    rm -f /tmp/dynamic_docker_auto_update.sh
+    exit 1
+  fi
+else
+  if ! bash /tmp/dynamic_docker_auto_update.sh; then
+    echo "❌ 更新脚本执行失败"
+    rm -f /tmp/dynamic_docker_auto_update.sh
+    exit 1
+  fi
+fi
+rm -f /tmp/dynamic_docker_auto_update.sh
+
 EOF
 
   chmod +x "$RUNNER"
