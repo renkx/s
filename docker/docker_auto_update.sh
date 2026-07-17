@@ -198,22 +198,22 @@ GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/docker/docker_auto_up
 GITEE_URL="https://gitee.com/renkx/ss/raw/main/docker/docker_auto_update.sh"
 
 if [[ "$IsGlobal" == "1" ]]; then
-  echo "🌍 检测到海外环境，优先使用 GitHub 源..."
+  echo "🌍 检测到海外环境，优先使用 GitHub 源：$GITHUB_URL"
   # 尝试读取 GitHub，如果失败则自动切换到 Gitee
   if curl "${CURL_OPTS[@]}" "$GITHUB_URL" > /tmp/dynamic_docker_auto_update.sh 2>/tmp/docker_auto_update_curl_err.log; then
     echo "🚀 GitHub 源下载成功"
   else
     echo "⚠️ GitHub 连接超时或失败，错误日志如下："
     cat /tmp/docker_auto_update_curl_err.log
-    rm -f /tmp/docker_auto_update_curl_err.sh
-    echo "🔄 正在尝试切换到 Gitee 备用源..."
+    rm -f /tmp/docker_auto_update_curl_err.log
+    echo "🔄 正在尝试切换到 Gitee 备用源：$GITEE_URL"
     if ! curl "${CURL_OPTS[@]}" "$GITEE_URL" > /tmp/dynamic_docker_auto_update.sh; then
       echo "❌ 所有更新源均不可用，执行失败"
       exit 1
     fi
   fi
 else
-  echo "🇨🇳 检测到国内环境，使用 Gitee 源"
+  echo "🇨🇳 检测到国内环境，使用 Gitee 源：$GITEE_URL"
   if ! curl "${CURL_OPTS[@]}" "$GITEE_URL" > /tmp/dynamic_docker_auto_update.sh; then
     echo "❌ Gitee 源下载失败"
     exit 1
@@ -235,6 +235,7 @@ else
   fi
 fi
 rm -f /tmp/dynamic_docker_auto_update.sh
+rm -f /tmp/docker_auto_update_curl_err.log
 
 EOF
 
