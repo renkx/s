@@ -16,8 +16,12 @@ RENEW_BEFORE_DAYS=30
 # 加锁，保证唯一执行
 LOCK_FILE="/tmp/acme_install_cert.lock"
 exec 200>"$LOCK_FILE"
-flock -n 200 || { echo "❌ 脚本已经在运行中，退出"; exit 1; }
-trap 'rm -f "$LOCK_FILE"' EXIT
+if ! flock -n 200; then
+    echo "❌ 脚本已经在运行中，退出"
+    exit 1
+fi
+# 退出时先关闭 fd 200（这会自动释放锁），再删掉临时锁文件
+trap 'exec 200>&-; rm -f "$LOCK_FILE"' EXIT
 
 # 参数校验
 if [ -z "$CONF_FILE" ] || [ ! -f "$CONF_FILE" ]; then
@@ -309,9 +313,8 @@ if [ -z "$CONF_FILE" ] || [ ! -f "$CONF_FILE" ]; then
 fi
 
 # 检测网络
+IsGlobal=0
 check_network_env() {
-  [ -n "${IsGlobal:-}" ] && return
-
   echo "🔍 正在分析网络路由 ..."
 
   # 1. 核心判断：使用 Google 204 服务进行内容校验
@@ -340,32 +343,59 @@ check_network_env() {
     fi
   fi
 
-  export IsGlobal
   echo "📍 网络定位: $ENV_TIP"
 }
 
 check_network_env
 
-if [[ "$IsGlobal" == "1" ]];then
-  echo "🌍 检测到海外环境，使用 GitHub 源"
-  UPDATE_URL="https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh"
+# 统一 Curl 下载参数
+# --connect-timeout 6: 连接超时
+# --max-time 30: 增加到 30 秒，确保脚本下载完整
+CURL_OPTS=(
+  --silent
+  --show-error
+  --location
+  --connect-timeout 6
+  --max-time 30
+  --retry 2
+  --retry-delay 1
+)
+
+GITHUB_URL="https://raw.githubusercontent.com/renkx/s/main/acme/acme.sh"
+GITEE_URL="https://gitee.com/renkx/ss/raw/main/acme/acme.sh"
+
+if [[ "$IsGlobal" == "1" ]]; then
+  echo "🌍 检测到海外环境，优先使用 GitHub 源：$GITHUB_URL"
+  # 尝试读取 GitHub，如果失败则自动切换到 Gitee
+  if curl "${CURL_OPTS[@]}" "$GITHUB_URL" > /tmp/dynamic_acme.sh 2>/tmp/acme_curl_err.log; then
+    echo "🚀 GitHub 源下载成功"
+  else
+    echo "⚠️ GitHub 连接超时或失败，错误日志如下："
+    cat /tmp/acme_curl_err.log
+    rm -f /tmp/acme_curl_err.log
+    echo "🔄 正在尝试切换到 Gitee 备用源：$GITEE_URL"
+    if ! curl "${CURL_OPTS[@]}" "$GITEE_URL" > /tmp/dynamic_acme.sh; then
+      echo "❌ 所有更新源均不可用，执行失败"
+      exit 1
+    fi
+  fi
 else
-  echo "🇨🇳 检测到国内环境，切换 Gitee 源"
-  UPDATE_URL="https://gitee.com/renkx/ss/raw/main/acme/acme.sh"
+  echo "🇨🇳 检测到国内环境，使用 Gitee 源：$GITEE_URL"
+  if ! curl "${CURL_OPTS[@]}" "$GITEE_URL" > /tmp/dynamic_acme.sh; then
+    echo "❌ Gitee 源下载失败"
+    exit 1
+  fi
 fi
 
-echo "🚀 执行更新脚本：$UPDATE_URL"
-
-# 统一 Curl 下载参数
-# --connect-timeout 5: 连接超时
-# --max-time 30: 增加到 30 秒，确保脚本下载完整
-CURL_CMD="curl --silent --show-error --location --connect-timeout 5 --max-time 30 --retry 2"
-
-# 执行远程脚本
-if ! bash <($CURL_CMD "$UPDATE_URL") "$@"; then
-  echo "❌ 远程脚本执行失败"
+# 直接执行下载好的临时脚本
+if ! bash /tmp/dynamic_acme.sh "$@"; then
+  echo "❌ 更新脚本执行失败"
+  rm -f /tmp/dynamic_acme.sh
   exit 1
 fi
+rm -f /tmp/dynamic_acme.sh
+rm -f /tmp/acme_curl_err.log
+
 EOF
 
   chmod +x "$RUNNER"
@@ -377,14 +407,22 @@ if [ ! -f "$ACME_INS" ]; then
 
   check_network_env
 
-  if [[ "$IsGlobal" == "1" ]];then
-      log "✅ GitHub 良好，使用官方快捷安装"
-      curl -sL https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh | sh -s -- --install-online -m m@renkx.com
-  else
-      log "⚠️ GitHub 较慢，采用官方推荐国内 Git 方案"
+  CURL_INSTALL_OPTS=(--silent --show-error --location --connect-timeout 6 --max-time 30 --retry 2)
 
-      # 2. 检查 git 是否安装
+  if [[ "$IsGlobal" == "1" ]]; then
+      log "✅ 尝试从 GitHub 下载官方安装脚本..."
+      if curl "${CURL_INSTALL_OPTS[@]}" "https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh" > /tmp/acme_installer.sh; then
+          sh /tmp/acme_installer.sh --install-online -m m@renkx.com
+          rm -f /tmp/acme_installer.sh
+      else
+          log "⚠️ GitHub 下载官方脚本超时，自动降级为国内方案..."
+          IsGlobal=0
+      fi
+  fi
+
+  if [[ "$IsGlobal" == "0" ]]; then
       if command -v git >/dev/null 2>&1; then
+          log "⚠️ 采用官方推荐国内 Git 方案"
           rm -rf /tmp/acme_git_src
           if git clone --depth 1 https://gitee.com/neilpang/acme.sh.git /tmp/acme_git_src; then
               cd /tmp/acme_git_src
@@ -393,12 +431,17 @@ if [ ! -f "$ACME_INS" ]; then
               rm -rf /tmp/acme_git_src
           fi
       else
-          log "⚠️ 未发现 git，退回到 Gitee Curl 方案"
-          curl -sL https://gitee.com/neilpang/acme.sh/raw/master/acme.sh | sh -s -- --install-online -m m@renkx.com
+          log "⚠️ 未发现 git，采用 Gitee Curl 落地文件方案"
+          if curl "${CURL_INSTALL_OPTS[@]}" "https://gitee.com/neilpang/acme.sh/raw/master/acme.sh" > /tmp/acme_installer.sh; then
+              sh /tmp/acme_installer.sh --install-online -m m@renkx.com
+              rm -f /tmp/acme_installer.sh
+          else
+              log "❌ 从 Gitee 下载官方脚本也失败了"
+          fi
       fi
   fi
 
-  # 3. 最终校验
+  # 最终校验
   if [ -f "$ACME_INS" ]; then
       log "✅ acme.sh 安装成功"
       "$ACME_INS" --set-default-ca --server letsencrypt
