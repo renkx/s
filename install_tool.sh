@@ -137,6 +137,21 @@ remove_cloud_pkg() {
   done
 }
 
+# 一键添加带智能检测的 ag 定时重启任务
+set_ag_restart() {
+  # 目标定时任务字符串
+  local cron_job="0 3 * * * docker ps --format '{{.Names}}' | grep -E '^ag$' >/dev/null && docker restart ag"
+
+  # 精准去重检查
+  if crontab -l 2>/dev/null | grep -Fq "docker restart ag"; then
+    echo "【跳过】ag 定时任务已存在，无需重复设置。"
+  else
+    # 写入系统
+    (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
+    echo "【成功】已成功为您添加 ag 运行期智能重启任务！"
+  fi
+}
+
 # 清理系统垃圾
 clean_system_rubbish() {
   echo_info "开始系统保养与深度清理..."
@@ -345,6 +360,9 @@ action_logic() {
     10)
         remove_cloud_pkg
         ;;
+    11)
+        set_ag_restart
+        ;;
     100)
         update_swap "$@"
         ;;
@@ -387,6 +405,7 @@ menu() {
     echo -e "${Green}8.${Font} 部署 supervisor"
     echo -e "${Green}9.${Font} 清理系统垃圾"
     echo -e "${Green}10.${Font} 移除云厂商软件"
+    echo -e "${Green}11.${Font} 设置ag定时重启"
     echo -e "${Green}100.${Font} 虚拟内存设置"
     echo -e "${Green}110.${Font} 安装acme命令动态配置域名证书"
     echo -e "${Green}120.${Font} 安装docker容器自动更新"
