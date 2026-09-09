@@ -20,9 +20,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Make a small change to reset 60-day timer
+      - name: Make a empty commit to reset 60-day timer
         run: |
-          date -u >.github/keepalive.txt
-          git add .github/keepalive.txt
-          git commit -m "chore: auto-refresh github actions keepalive timer"
+          git commit --allow-empty -m "chore: auto-refresh github actions keepalive timer"
           git push
