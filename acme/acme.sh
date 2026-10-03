@@ -10,7 +10,7 @@ CONF_FILE=$(realpath "$1" 2>/dev/null || echo "$1")
 # 判断是否是手动强制执行 (crontab 任务不会带这个参数)
 FORCE_RENEW=0
 [[ "$2" == "--force" ]] && FORCE_RENEW=1
-# 证书默认阈值 62天
+# 证书默认阈值 62天（cf系统默认是30天更新，而ali是默认60天，我们要比默认的要更早执行）
 RENEW_BEFORE_DAYS=62
 
 # 加锁，保证唯一执行
