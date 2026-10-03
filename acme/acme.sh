@@ -228,9 +228,12 @@ gen_install_cert() {
 
         # 申请并安装
         if "$ACME_INS" --issue --dns "$dns_type" --keylength ec-256 --force -d "$domain"; then
+            log "✅ 证书申请成功: $domain"
             if "$ACME_INS" --install-cert --ecc -d "$domain" --key-file "$key_file" --fullchain-file "$fullchain_file"; then
                 log "✅ 证书安装成功: $domain"
                 any_success=1  # 只有这里真正成功了，才会把状态置为 1
+            else
+                log "❌ 证书安装失败: $domain"
             fi
         else
             log "❌ 申请证书失败: $domain"
