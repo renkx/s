@@ -10,8 +10,8 @@ CONF_FILE=$(realpath "$1" 2>/dev/null || echo "$1")
 # 判断是否是手动强制执行 (crontab 任务不会带这个参数)
 FORCE_RENEW=0
 [[ "$2" == "--force" ]] && FORCE_RENEW=1
-# 证书默认阈值 62天（cf系统默认是30天更新，而ali是默认60天，我们要比默认的要更早执行）
-RENEW_BEFORE_DAYS=62
+# 证书默认已用天数阈值 25天（cf系统默认是30天更新，而ali是默认60天，我们要比默认的要更早更新）
+RENEW_BEFORE_DAYS=25
 
 # 加锁，保证唯一执行
 LOCK_FILE="/tmp/acme_install_cert.lock"
@@ -112,45 +112,55 @@ check_network_env() {
 # 检测证书过期时间
 check_cert_expiry() {
   local cert_path="$1"
-  # 默认阈值 30天
-  local renew_limit="${2:-30}"
+  # 默认已过 25 天就更新
+  local renew_limit="${2:-25}"
 
   # 1. 检查文件是否存在
   if [ ! -f "$cert_path" ]; then
     return 0 # 不存在则需要申请
   fi
 
-  # 2. 获取证书到期日期字符串
-  local raw_date
-  raw_date=$(openssl x509 -in "$cert_path" -noout -enddate | cut -d= -f2)
+  # 2. 获取证书的生效日期和到期日期字符串
+  local raw_start_date raw_end_date
+  raw_start_date=$(openssl x509 -in "$cert_path" -noout -startdate | cut -d= -f2)
+  raw_end_date=$(openssl x509 -in "$cert_path" -noout -enddate | cut -d= -f2)
 
-  # 3. 转换为 Unix 时间戳 (核心优化点：使用 TZ=UTC 确保跨系统一致)
-  local expire_timestamp
-  expire_timestamp=$(TZ=UTC date -d "$raw_date" +%s 2>/dev/null)
-
+  # 3. 转换为 Unix 时间戳 (处理生效日期)
+  local start_timestamp
+  start_timestamp=$(TZ=UTC date -d "$raw_start_date" +%s 2>/dev/null)
   # 如果常规 date 解析失败，尝试针对旧版或不同格式进行手动处理
-  if [ -z "$expire_timestamp" ]; then
+  if [ -z "$start_timestamp" ]; then
     # 移除 GMT 字样再试一次
-    local clean_date="${raw_date/ GMT/}"
-    expire_timestamp=$(TZ=UTC date -d "$clean_date" +%s 2>/dev/null)
+    local clean_start="${raw_start_date/ GMT/}"
+    start_timestamp=$(TZ=UTC date -d "$clean_start" +%s 2>/dev/null)
   fi
 
-  # 4. 如果依然解析失败，安全起见返回 0 (申请新证书)
+  # 4. 转换为 Unix 时间戳 (处理到期日期)
+  local expire_timestamp
+  expire_timestamp=$(TZ=UTC date -d "$raw_end_date" +%s 2>/dev/null)
   if [ -z "$expire_timestamp" ]; then
-    log "⚠️ 无法解析证书日期格式: $raw_date，将重新申请"
+    local clean_end="${raw_end_date/ GMT/}"
+    expire_timestamp=$(TZ=UTC date -d "$clean_end" +%s 2>/dev/null)
+  fi
+
+  # 5. 如果任意一个解析失败，安全起见返回 0 (申请新证书)
+  if [ -z "$start_timestamp" ] || [ -z "$expire_timestamp" ]; then
+    log "⚠️ 无法解析证书日期格式，将重新申请"
     return 0
   fi
 
-  # 5. 获取当前时间戳并计算剩余天数
+  # 6. 获取当前时间戳，计算“已过去的天数”和“剩余天数”
   local now_timestamp
   now_timestamp=$(date +%s)
+  local passed_days=$(( (now_timestamp - start_timestamp) / 86400 ))
   local remaining_days=$(( (expire_timestamp - now_timestamp) / 86400 ))
 
-  if [ "$remaining_days" -le "$renew_limit" ]; then
-    log "📅 证书剩余 $remaining_days 天，准备更新 (阈值: $renew_limit 天)"
+  # 7. 判断逻辑：已过天数达到阈值则更新
+  if [ "$passed_days" -ge "$renew_limit" ]; then
+    log "📅 证书已使用 $passed_days 天 (剩余 $remaining_days 天)，准备更新 (阈值: $passed_days 天已到)"
     return 0 # 需要更新
   else
-    log "✅ 证书剩余 $remaining_days 天，跳过更新"
+    log "✅ 证书已使用 $passed_days 天 (剩余 $remaining_days 天)，跳过更新 (阈值: $passed_days )"
     return 1 # 跳过
   fi
 }
@@ -158,8 +168,8 @@ check_cert_expiry() {
 # 生成并安装证书
 gen_install_cert() {
   local any_success=0
-  # 从配置文件读取 RENEW_BEFORE_DAYS，若无则默认为 62
-  local renew_limit="${RENEW_BEFORE_DAYS:-62}"
+  # 从配置文件读取 RENEW_BEFORE_DAYS，若无则默认为 25
+  local renew_limit="${RENEW_BEFORE_DAYS:-25}"
 
   for item in "${CERT_ITEMS[@]}"; do
     IFS='|' read -r domain provider key_file fullchain_file VALUE1 VALUE2 VALUE3 <<< "$item"
