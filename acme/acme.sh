@@ -157,10 +157,10 @@ check_cert_expiry() {
 
   # 7. 判断逻辑：已过天数达到阈值则更新
   if [ "$passed_days" -ge "$renew_limit" ]; then
-    log "📅 证书已使用 $passed_days 天 (剩余 $remaining_days 天)，准备更新 (阈值: $passed_days 天已到)"
+    log "📅 证书已使用 $passed_days 天 (剩余 $remaining_days 天)，准备更新 (阈值: $renew_limit 天已到)"
     return 0 # 需要更新
   else
-    log "✅ 证书已使用 $passed_days 天 (剩余 $remaining_days 天)，跳过更新 (阈值: $passed_days )"
+    log "✅ 证书已使用 $passed_days 天 (剩余 $remaining_days 天)，跳过更新 (阈值: $renew_limit )"
     return 1 # 跳过
   fi
 }
