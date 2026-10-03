@@ -10,8 +10,8 @@ CONF_FILE=$(realpath "$1" 2>/dev/null || echo "$1")
 # 判断是否是手动强制执行 (crontab 任务不会带这个参数)
 FORCE_RENEW=0
 [[ "$2" == "--force" ]] && FORCE_RENEW=1
-# 证书默认阈值 30天
-RENEW_BEFORE_DAYS=30
+# 证书默认阈值 62天
+RENEW_BEFORE_DAYS=62
 
 # 加锁，保证唯一执行
 LOCK_FILE="/tmp/acme_install_cert.lock"
@@ -158,8 +158,8 @@ check_cert_expiry() {
 # 生成并安装证书
 gen_install_cert() {
   local any_success=0
-  # 从配置文件读取 RENEW_BEFORE_DAYS，若无则默认为 30
-  local renew_limit="${RENEW_BEFORE_DAYS:-30}"
+  # 从配置文件读取 RENEW_BEFORE_DAYS，若无则默认为 62
+  local renew_limit="${RENEW_BEFORE_DAYS:-62}"
 
   for item in "${CERT_ITEMS[@]}"; do
     IFS='|' read -r domain provider key_file fullchain_file VALUE1 VALUE2 VALUE3 <<< "$item"
